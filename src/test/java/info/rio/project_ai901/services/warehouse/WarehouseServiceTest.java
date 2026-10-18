@@ -8,6 +8,7 @@ import info.rio.project_ai901.exceptions.ResourceNotFoundException;
 import info.rio.project_ai901.models.Branch;
 import info.rio.project_ai901.models.Warehouse;
 import info.rio.project_ai901.repositories.BranchRepository;
+import info.rio.project_ai901.repositories.InventoryRepository;
 import info.rio.project_ai901.repositories.WarehouseRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,13 +26,16 @@ class WarehouseServiceTest {
 
     private WarehouseRepository warehouseRepository;
     private BranchRepository branchRepository;
+    private InventoryRepository inventoryRepository;
     private WarehouseService service;
 
     @BeforeEach
     void setUp() {
         warehouseRepository = Mockito.mock(WarehouseRepository.class);
         branchRepository = Mockito.mock(BranchRepository.class);
-        service = new WarehouseService(warehouseRepository, branchRepository, new WarehouseMapper());
+        inventoryRepository = Mockito.mock(InventoryRepository.class);
+        service = new WarehouseService(warehouseRepository, branchRepository, inventoryRepository,
+                new WarehouseMapper());
     }
 
     @Test

@@ -7,10 +7,12 @@ import info.rio.project_ai901.api.dto.WarehouseDetailResponse;
 import info.rio.project_ai901.api.dto.WarehouseSummaryResponse;
 import info.rio.project_ai901.exceptions.DuplicateResourceException;
 import info.rio.project_ai901.exceptions.InvalidRequestException;
+import info.rio.project_ai901.exceptions.ResourceInUseException;
 import info.rio.project_ai901.exceptions.ResourceNotFoundException;
 import info.rio.project_ai901.models.Branch;
 import info.rio.project_ai901.models.Warehouse;
 import info.rio.project_ai901.repositories.BranchRepository;
+import info.rio.project_ai901.repositories.InventoryRepository;
 import info.rio.project_ai901.repositories.WarehouseRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,12 +28,14 @@ public class WarehouseService {
 
     private final WarehouseRepository warehouseRepository;
     private final BranchRepository branchRepository;
+    private final InventoryRepository inventoryRepository;
     private final WarehouseMapper mapper;
 
     public WarehouseService(WarehouseRepository warehouseRepository, BranchRepository branchRepository,
-            WarehouseMapper mapper) {
+            InventoryRepository inventoryRepository, WarehouseMapper mapper) {
         this.warehouseRepository = warehouseRepository;
         this.branchRepository = branchRepository;
+        this.inventoryRepository = inventoryRepository;
         this.mapper = mapper;
     }
 
@@ -89,6 +93,9 @@ public class WarehouseService {
         Warehouse warehouse = find(id);
         if (!warehouse.isActive()) {
             throw new ResourceNotFoundException("Almacen no encontrado: " + id);
+        }
+        if (inventoryRepository.countByWarehouse_Id(id) > 0) {
+            throw new ResourceInUseException("No se puede desactivar el almacen porque tiene inventario asociado");
         }
         warehouse.setActive(false);
         warehouseRepository.save(warehouse);

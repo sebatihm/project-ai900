@@ -45,6 +45,14 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleOptimisticLock(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "El recurso fue modificado por otra operacion simultanea, vuelva a intentarlo");
+        problem.setTitle("Conflicto de concurrencia");
+        return problem;
+    }
+
     @ExceptionHandler(InvoiceValidationException.class)
     public ProblemDetail handleValidation(InvoiceValidationException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());

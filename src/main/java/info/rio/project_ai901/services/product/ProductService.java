@@ -6,10 +6,12 @@ import info.rio.project_ai901.api.dto.ProductDetailResponse;
 import info.rio.project_ai901.api.dto.ProductSummaryResponse;
 import info.rio.project_ai901.api.dto.UpdateProductRequest;
 import info.rio.project_ai901.exceptions.DuplicateResourceException;
+import info.rio.project_ai901.exceptions.ResourceInUseException;
 import info.rio.project_ai901.exceptions.ResourceNotFoundException;
 import info.rio.project_ai901.models.Category;
 import info.rio.project_ai901.models.Product;
 import info.rio.project_ai901.repositories.CategoryRepository;
+import info.rio.project_ai901.repositories.InventoryRepository;
 import info.rio.project_ai901.repositories.ProductRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,12 +27,14 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final InventoryRepository inventoryRepository;
     private final ProductMapper mapper;
 
     public ProductService(ProductRepository productRepository, CategoryRepository categoryRepository,
-            ProductMapper mapper) {
+            InventoryRepository inventoryRepository, ProductMapper mapper) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.inventoryRepository = inventoryRepository;
         this.mapper = mapper;
     }
 
@@ -122,6 +126,9 @@ public class ProductService {
     @Transactional
     public void delete(UUID id) {
         Product product = find(id);
+        if (inventoryRepository.countByProduct_Id(id) > 0) {
+            throw new ResourceInUseException("No se puede eliminar el producto porque tiene inventario asociado");
+        }
         productRepository.delete(product);
     }
 }
