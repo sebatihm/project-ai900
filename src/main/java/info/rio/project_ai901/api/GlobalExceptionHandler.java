@@ -1,12 +1,16 @@
 package info.rio.project_ai901.api;
 
 import info.rio.project_ai901.exceptions.DuplicateInvoiceException;
+import info.rio.project_ai901.exceptions.DuplicateResourceException;
 import info.rio.project_ai901.exceptions.InvalidRequestException;
 import info.rio.project_ai901.exceptions.InvoiceValidationException;
+import info.rio.project_ai901.exceptions.ResourceInUseException;
 import info.rio.project_ai901.exceptions.ResourceNotFoundException;
 import info.rio.project_ai901.services.storage.StorageException;
+import tools.jackson.databind.exc.InvalidFormatException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -24,6 +28,20 @@ public class GlobalExceptionHandler {
         problem.setProperty("originalInvoiceId", ex.getOriginalInvoiceId());
         problem.setProperty("originalContainer", ex.getOriginalContainer());
         problem.setProperty("originalBlobPath", ex.getOriginalBlobPath());
+        return problem;
+    }
+
+    @ExceptionHandler(DuplicateResourceException.class)
+    public ProblemDetail handleDuplicateResource(DuplicateResourceException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Recurso duplicado");
+        return problem;
+    }
+
+    @ExceptionHandler(ResourceInUseException.class)
+    public ProblemDetail handleResourceInUse(ResourceInUseException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Recurso en uso");
         return problem;
     }
 
@@ -61,6 +79,20 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Error de almacenamiento: " + ex.getMessage());
         problem.setTitle("Error de almacenamiento");
+        return problem;
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleUnreadableMessage(HttpMessageNotReadableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "El cuerpo de la solicitud es invalido o contiene un valor con formato incorrecto");
+        problem.setTitle("Solicitud mal formada");
+        Throwable cause = ex.getCause();
+        if (cause instanceof InvalidFormatException invalidFormat && !invalidFormat.getPath().isEmpty()) {
+            var reference = invalidFormat.getPath().get(invalidFormat.getPath().size() - 1);
+            problem.setProperty("field", reference.getPropertyName());
+            problem.setProperty("rejectedValue", String.valueOf(invalidFormat.getValue()));
+        }
         return problem;
     }
 

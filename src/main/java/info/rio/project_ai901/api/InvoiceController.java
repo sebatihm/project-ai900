@@ -25,7 +25,7 @@ import java.util.UUID;
 
 @Validated
 @RestController
-@RequestMapping("/invoices")
+@RequestMapping("/invoice")
 public class InvoiceController {
 
     private final InvoiceQueryService invoiceQueryService;

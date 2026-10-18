@@ -27,8 +27,14 @@ public class Warehouse {
     @Column(columnDefinition = "char(36)")
     private UUID id;
 
+    @Column(nullable = false, unique = true, length = 20)
+    private String code;
+
     @Column(nullable = false)
     private String name;
+
+    @Column(nullable = false, columnDefinition = "bit(1) not null default b'1'")
+    private boolean active = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id", nullable = false)
