@@ -1,6 +1,5 @@
 package info.rio.project_ai901.models;
 
-import info.rio.project_ai901.models.enums.InvoiceFlagReason;
 import info.rio.project_ai901.models.enums.InvoiceStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -38,33 +37,52 @@ public class Invoice {
     @JoinColumn(name = "supplier_id")
     private Supplier supplier;
 
+    @Column(length = 255)
+    private String originalFileName;
+
+    @Column(nullable = false, unique = true, length = 64)
+    private String fileHash;
+
+    @Column(nullable = false, length = 100)
+    private String container;
+
+    @Column(nullable = false, length = 500)
+    private String blobPath;
+
     @Column(length = 50)
     private String invoiceNumber;
 
     private LocalDate invoiceDate;
 
+    private LocalDate dueDate;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal subtotal;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal tax;
+
     @Column(precision = 12, scale = 2)
     private BigDecimal total;
 
-    @Column(nullable = false)
-    private LocalDateTime loadedAt;
-
-    @Column(length = 500)
-    private String blobPath;
-
-    @Column(length = 64)
-    private String fileHash;
+    @Column(length = 3)
+    private String currency;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private InvoiceStatus status;
 
-    @Enumerated(EnumType.STRING)
-    @Column(length = 30)
-    private InvoiceFlagReason flagReason;
-
     @Column(precision = 4, scale = 3)
-    private BigDecimal aiConfidence;
+    private BigDecimal minConfidence;
+
+    @Column(nullable = false)
+    private int suspicionScore;
+
+    @Column(columnDefinition = "text")
+    private String reasons;
+
+    @Column(columnDefinition = "mediumtext")
+    private String rawAnalysis;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "loaded_by", nullable = false)
@@ -73,4 +91,9 @@ public class Invoice {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by")
     private User reviewedBy;
+
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    private LocalDateTime reviewedAt;
 }
