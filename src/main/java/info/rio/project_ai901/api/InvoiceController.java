@@ -34,9 +34,11 @@ public class InvoiceController {
     }
 
     @GetMapping
-    public Page<InvoiceSummaryResponse> list(@RequestParam(value = "status", required = false) InvoiceStatus status,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return invoiceQueryService.list(status, pageable);
+    public info.rio.project_ai901.api.dto.PaginatedResponse<InvoiceSummaryResponse> list(
+            @RequestParam(value = "status", required = false) InvoiceStatus status,
+            @RequestParam(value = "offset", defaultValue = "0") long offset,
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        return invoiceQueryService.list(status, offset, limit);
     }
 
     @GetMapping("/{id}")

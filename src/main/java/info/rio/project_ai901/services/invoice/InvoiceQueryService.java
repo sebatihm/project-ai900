@@ -32,10 +32,28 @@ public class InvoiceQueryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<InvoiceSummaryResponse> list(InvoiceStatus status, Pageable pageable) {
-        Page<Invoice> page = status == null ? invoiceRepository.findAll(pageable)
+    public info.rio.project_ai901.api.dto.PaginatedResponse<InvoiceSummaryResponse> list(InvoiceStatus status,
+            long offset, int limit) {
+        if (limit < 1) {
+            limit = 1;
+        }
+        if (limit > 100) {
+            limit = 100;
+        }
+        if (offset < 0) {
+            offset = 0;
+        }
+        int page = (int) (offset / limit);
+        int size = limit;
+        org.springframework.data.domain.PageRequest pageable = org.springframework.data.domain.PageRequest.of(page, size,
+                org.springframework.data.domain.Sort.by("createdAt").descending());
+        org.springframework.data.domain.Page<Invoice> pageResult = status == null ? invoiceRepository.findAll(pageable)
                 : invoiceRepository.findByStatus(status, pageable);
-        return page.map(mapper::toSummary);
+        java.util.List<InvoiceSummaryResponse> items = pageResult.getContent().stream()
+                .map(mapper::toSummary)
+                .toList();
+        long total = pageResult.getTotalElements();
+        return new info.rio.project_ai901.api.dto.PaginatedResponse<>(items, total, offset, limit);
     }
 
     @Transactional(readOnly = true)

@@ -25,4 +25,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
     List<Invoice> findTop20BySupplier_IdOrderByCreatedAtDesc(UUID supplierId);
 
     Page<Invoice> findByStatus(InvoiceStatus status, Pageable pageable);
+
+    long countByStatus(InvoiceStatus status);
+
+    long count();
 }
