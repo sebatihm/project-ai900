@@ -1,17 +1,16 @@
 package info.rio.project_ai901.api;
 
+import info.rio.project_ai901.api.dto.ApiResponse;
 import info.rio.project_ai901.api.dto.InvoiceDetailResponse;
 import info.rio.project_ai901.api.dto.InvoiceSummaryResponse;
+import info.rio.project_ai901.api.dto.PaginatedResponse;
 import info.rio.project_ai901.api.dto.ReviewRequest;
 import info.rio.project_ai901.models.enums.InvoiceStatus;
 import info.rio.project_ai901.services.invoice.InvoiceQueryService;
 import info.rio.project_ai901.services.invoice.InvoiceReviewService;
 import jakarta.validation.Valid;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,25 +37,31 @@ public class InvoiceController {
     }
 
     @GetMapping
-    public info.rio.project_ai901.api.dto.PaginatedResponse<InvoiceSummaryResponse> list(
+    public ResponseEntity<ApiResponse<PaginatedResponse<InvoiceSummaryResponse>>> list(
             @RequestParam(value = "status", required = false) InvoiceStatus status,
             @RequestParam(value = "offset", defaultValue = "0") long offset,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
-        return invoiceQueryService.list(status, offset, limit);
+        PaginatedResponse<InvoiceSummaryResponse> result = invoiceQueryService.list(status, offset, limit);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Listado de facturas obtenido correctamente"));
     }
 
     @GetMapping("/{id}")
-    public InvoiceDetailResponse detail(@PathVariable("id") UUID id) {
-        return invoiceQueryService.detail(id);
+    public ResponseEntity<ApiResponse<InvoiceDetailResponse>> detail(@PathVariable("id") UUID id) {
+        InvoiceDetailResponse result = invoiceQueryService.detail(id);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Detalle de factura obtenido correctamente"));
     }
 
     @PostMapping("/{id}/review")
-    public InvoiceDetailResponse review(@PathVariable("id") UUID id, @Valid @RequestBody ReviewRequest request) {
-        return invoiceReviewService.review(id, request);
+    public ResponseEntity<ApiResponse<InvoiceDetailResponse>> review(@PathVariable("id") UUID id,
+            @Valid @RequestBody ReviewRequest request) {
+        InvoiceDetailResponse result = invoiceReviewService.review(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Revisión de factura registrada correctamente"));
     }
 
     @GetMapping("/{id}/file-url")
-    public Map<String, String> fileUrl(@PathVariable("id") UUID id) {
-        return Map.of("readUrl", invoiceQueryService.readUrl(id));
+    public ResponseEntity<ApiResponse<Map<String, String>>> fileUrl(@PathVariable("id") UUID id) {
+        String readUrl = invoiceQueryService.readUrl(id);
+        Map<String, String> result = Map.of("readUrl", readUrl);
+        return ResponseEntity.ok(ApiResponse.ok(result, "URL de lectura generada correctamente"));
     }
 }

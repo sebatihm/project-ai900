@@ -1,8 +1,11 @@
 package info.rio.project_ai901.api;
 
+import info.rio.project_ai901.api.dto.ApiResponse;
 import info.rio.project_ai901.api.dto.InvoiceAnalysisResponse;
+import info.rio.project_ai901.api.dto.InvoiceAnalyzerRequest;
 import info.rio.project_ai901.exceptions.InvalidRequestException;
 import info.rio.project_ai901.services.invoice.InvoiceIngestionService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -27,8 +30,8 @@ public class InvoiceAnalyzerController {
     }
 
     @PostMapping
-    public ResponseEntity<InvoiceAnalysisResponse> analyze(
-            @org.springframework.web.bind.annotation.ModelAttribute @jakarta.validation.Valid info.rio.project_ai901.api.dto.InvoiceAnalyzerRequest request) {
+    public ResponseEntity<ApiResponse<InvoiceAnalysisResponse>> analyze(
+            @ModelAttribute @Valid InvoiceAnalyzerRequest request) {
         MultipartFile file = request.getFile();
         if (file == null || file.isEmpty()) {
             throw new InvalidRequestException("El archivo 'file' es obligatorio y no puede estar vacio");
@@ -42,6 +45,8 @@ public class InvoiceAnalyzerController {
         String uploadedBy = request.getUploadedBy() == null ? "" : request.getUploadedBy().trim();
         InvoiceAnalysisResponse response = invoiceIngestionService.analyze(file.getOriginalFilename(), content,
                 uploadedBy, request.getSupplierId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(info.rio.project_ai901.api.dto.ApiResponse.created(response,
+                        "Análisis de factura realizado correctamente"));
     }
 }
