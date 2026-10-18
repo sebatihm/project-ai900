@@ -10,6 +10,9 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -58,6 +61,48 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Error de almacenamiento: " + ex.getMessage());
         problem.setTitle("Error de almacenamiento");
+        return problem;
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ProblemDetail handleBodyValidation(MethodArgumentNotValidException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Datos de solicitud invalidos");
+        problem.setTitle("Validacion fallida");
+        var errors = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .toList();
+        problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ProblemDetail handleMethodValidation(HandlerMethodValidationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Parametros invalidos");
+        problem.setTitle("Validacion fallida");
+        var errors = ex.getParameterValidationResults().stream()
+                .flatMap(pvr -> pvr.getResolvableErrors().stream()
+                        .map(err -> pvr.getMethodParameter().getParameterName() + ": " + err.getDefaultMessage()))
+                .toList();
+        problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Parametros invalidos");
+        problem.setTitle("Validacion fallida");
+        var errors = ex.getConstraintViolations().stream()
+                .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
+                .toList();
+        problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    public ProblemDetail handleMultipart(org.springframework.web.multipart.MultipartException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "La solicitud debe ser multipart/form-data y contener el archivo 'file'");
+        problem.setTitle("Solicitud multipart invalida");
         return problem;
     }
 }
