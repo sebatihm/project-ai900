@@ -24,9 +24,15 @@ public class Branch {
     @Column(columnDefinition = "char(36)")
     private UUID id;
 
+    @Column(nullable = false, unique = true, length = 20)
+    private String code;
+
     @Column(nullable = false)
     private String name;
 
     @Column(nullable = false)
     private String city;
+
+    @Column(nullable = false, columnDefinition = "bit(1) not null default b'1'")
+    private boolean active = true;
 }
