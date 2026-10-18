@@ -53,6 +53,14 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "La operacion viola una restriccion de integridad de datos");
+        problem.setTitle("Conflicto de integridad");
+        return problem;
+    }
+
     @ExceptionHandler(InvoiceValidationException.class)
     public ProblemDetail handleValidation(InvoiceValidationException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
