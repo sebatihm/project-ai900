@@ -1,71 +1,67 @@
 package info.rio.project_ai901.services.storage;
 
+import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
-import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.BlobHttpHeaders;
-import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Value;
+import com.azure.storage.blob.sas.BlobSasPermission;
+import com.azure.storage.blob.sas.BlobServiceSasSignatureValues;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Map;
 
 @Service
 @ConditionalOnProperty(name = "app.storage.type", havingValue = "azure")
 public class AzureBlobStorageService implements StorageService {
 
-    private final String connectionString;
-    private final String containerName;
-    private BlobContainerClient container;
+    private final BlobServiceClient blobServiceClient;
 
-    public AzureBlobStorageService(
-            @Value("${app.storage.azure.connection-string:}") String connectionString,
-            @Value("${app.storage.azure.container:uploads}") String containerName) {
-        this.connectionString = connectionString;
-        this.containerName = containerName;
-    }
-
-    @PostConstruct
-    void init() {
-        if (connectionString == null || connectionString.isBlank()) {
-            throw new IllegalStateException(
-                    "app.storage.azure.connection-string no esta configurado (AZURE_STORAGE_CONNECTION_STRING)");
-        }
-        BlobServiceClient serviceClient = new BlobServiceClientBuilder()
-                .connectionString(connectionString)
-                .buildClient();
-        this.container = serviceClient.getBlobContainerClient(containerName);
-        if (!container.exists()) {
-            container.create();
-        }
+    public AzureBlobStorageService(BlobServiceClient blobServiceClient) {
+        this.blobServiceClient = blobServiceClient;
     }
 
     @Override
-    public String upload(String folder, String filename, InputStream data, long size, String contentType) {
+    public String upload(String container, String folder, String filename, InputStream data, long size,
+            String contentType, Map<String, String> metadata) {
         String path = join(folder, filename);
+        BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(container);
+        containerClient.createIfNotExists();
         BlobHttpHeaders headers = new BlobHttpHeaders();
         if (contentType != null && !contentType.isBlank()) {
             headers.setContentType(contentType);
         }
-        container.getBlobClient(path).getBlockBlobClient()
-                .uploadWithResponse(data, size, headers, null, null, null, null, null, null);
+        containerClient.getBlobClient(path).getBlockBlobClient()
+                .uploadWithResponse(data, size, headers, metadata, null, null, null, null, null);
         return path;
     }
 
     @Override
-    public InputStream download(String path) {
-        return container.getBlobClient(path).openInputStream();
+    public InputStream download(String container, String path) {
+        return blobServiceClient.getBlobContainerClient(container).getBlobClient(path).openInputStream();
     }
 
     @Override
-    public void delete(String path) {
-        container.getBlobClient(path).delete();
+    public void delete(String container, String path) {
+        blobServiceClient.getBlobContainerClient(container).getBlobClient(path).delete();
     }
 
     @Override
-    public boolean exists(String path) {
-        return container.getBlobClient(path).exists();
+    public boolean exists(String container, String path) {
+        return blobServiceClient.getBlobContainerClient(container).getBlobClient(path).exists();
+    }
+
+    @Override
+    public String readUrl(String container, String path, Duration ttl) {
+        BlobClient blob = blobServiceClient.getBlobContainerClient(container).getBlobClient(path);
+        OffsetDateTime expiry = OffsetDateTime.now(ZoneOffset.UTC).plus(ttl);
+        BlobServiceSasSignatureValues values = new BlobServiceSasSignatureValues(expiry,
+                new BlobSasPermission().setReadPermission(true));
+        return blob.getBlobUrl() + "?" + blob.generateSas(values);
     }
 
     private String join(String folder, String filename) {

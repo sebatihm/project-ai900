@@ -1,27 +1,25 @@
 package info.rio.project_ai901.services.ai;
 
 import com.azure.ai.documentintelligence.DocumentIntelligenceClient;
-import com.azure.ai.documentintelligence.DocumentIntelligenceClientBuilder;
 import com.azure.ai.documentintelligence.models.AnalyzeDocumentOptions;
 import com.azure.ai.documentintelligence.models.AnalyzeOperationDetails;
 import com.azure.ai.documentintelligence.models.AnalyzeResult;
 import com.azure.ai.documentintelligence.models.AnalyzedDocument;
 import com.azure.ai.documentintelligence.models.CurrencyValue;
 import com.azure.ai.documentintelligence.models.DocumentField;
-import com.azure.core.credential.AzureKeyCredential;
 import com.azure.core.util.BinaryData;
 import com.azure.core.util.polling.SyncPoller;
+import info.rio.project_ai901.services.ai.dto.InvoiceItemData;
 import info.rio.project_ai901.services.ai.dto.InvoiceOcrResult;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,17 +31,8 @@ public class AzureDocumentIntelligenceService implements DocumentIntelligenceSer
 
     private final DocumentIntelligenceClient client;
 
-    public AzureDocumentIntelligenceService(
-            @Value("${app.ai.di.endpoint:}") String endpoint,
-            @Value("${app.ai.di.key:}") String key) {
-        if (endpoint == null || endpoint.isBlank() || key == null || key.isBlank()) {
-            throw new IllegalStateException(
-                    "app.ai.di.endpoint/key no estan configurados (AZURE_DOC_INTELLIGENCE_ENDPOINT / AZURE_DOC_INTELLIGENCE_KEY)");
-        }
-        this.client = new DocumentIntelligenceClientBuilder()
-                .endpoint(endpoint)
-                .credential(new AzureKeyCredential(key))
-                .buildClient();
+    public AzureDocumentIntelligenceService(DocumentIntelligenceClient client) {
+        this.client = client;
     }
 
     @Override
@@ -53,57 +42,79 @@ public class AzureDocumentIntelligenceService implements DocumentIntelligenceSer
         AnalyzeResult analyzeResult = poller.getFinalResult();
 
         InvoiceOcrResult result = new InvoiceOcrResult();
-        List<String> missing = new ArrayList<>();
+        result.setDocumentCount(analyzeResult.getDocuments().size());
+        result.setRawJson(toJson(analyzeResult));
 
-        AnalyzedDocument invoice = analyzeResult.getDocuments().isEmpty()
-                ? null
-                : analyzeResult.getDocuments().getFirst();
-        Map<String, DocumentField> fields = invoice == null ? Map.of() : invoice.getFields();
-
-        String vendorName = stringValue(fields.get("VendorName"));
-        LocalDate invoiceDate = dateValue(fields.get("InvoiceDate"));
-        BigDecimal invoiceTotal = currencyValue(fields.get("InvoiceTotal"));
-        String invoiceNumber = stringValue(fields.get("InvoiceId"));
-        if (invoiceNumber == null) {
-            invoiceNumber = stringValue(fields.get("InvoiceNumber"));
+        if (analyzeResult.getDocuments().isEmpty()) {
+            return result;
         }
 
-        if (vendorName == null) {
-            missing.add("vendorName");
-        }
-        if (invoiceNumber == null) {
-            missing.add("invoiceNumber");
-        }
-        if (invoiceDate == null) {
-            missing.add("invoiceDate");
-        }
-        if (invoiceTotal == null) {
-            missing.add("invoiceTotal");
-        }
+        AnalyzedDocument invoice = analyzeResult.getDocuments().getFirst();
+        Map<String, DocumentField> fields = invoice.getFields() == null ? Map.of() : invoice.getFields();
 
-        result.setVendorName(vendorName);
-        result.setInvoiceNumber(invoiceNumber);
-        result.setInvoiceDate(invoiceDate);
-        result.setInvoiceTotal(invoiceTotal);
-        result.setConfidence(averageConfidence(fields,
-                List.of("VendorName", "InvoiceId", "InvoiceNumber", "InvoiceDate", "InvoiceTotal")));
-        result.setMissingFields(missing);
+        result.setVendorName(stringValue(fields.get("VendorName")));
+        result.setInvoiceNumber(
+                firstNonNull(stringValue(fields.get("InvoiceId")), stringValue(fields.get("InvoiceNumber"))));
+        result.setInvoiceDate(dateValue(fields.get("InvoiceDate")));
+        result.setDueDate(dateValue(fields.get("DueDate")));
+        result.setSubtotal(amountValue(fields.get("SubTotal")));
+        result.setTax(amountValue(fields.get("TotalTax")));
+        result.setTotal(amountValue(fields.get("InvoiceTotal")));
+        result.setCurrency(currencyCode(fields.get("InvoiceTotal")));
+        result.setItems(items(fields.get("Items")));
+
+        Map<String, BigDecimal> confidences = new LinkedHashMap<>();
+        putConfidence(confidences, "vendorName", fields.get("VendorName"));
+        putConfidence(confidences, "invoiceNumber", fields.get("InvoiceId"));
+        putConfidence(confidences, "invoiceDate", fields.get("InvoiceDate"));
+        putConfidence(confidences, "dueDate", fields.get("DueDate"));
+        putConfidence(confidences, "subtotal", fields.get("SubTotal"));
+        putConfidence(confidences, "tax", fields.get("TotalTax"));
+        putConfidence(confidences, "total", fields.get("InvoiceTotal"));
+        result.setConfidenceByField(confidences);
+        result.setMinConfidence(minOf(confidences, "invoiceNumber", "invoiceDate", "total"));
         return result;
     }
 
-    private BigDecimal averageConfidence(Map<String, DocumentField> fields, List<String> keys) {
-        List<Double> confidences = new ArrayList<>();
+    private String toJson(AnalyzeResult analyzeResult) {
+        try {
+            return analyzeResult.toJsonString();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private List<InvoiceItemData> items(DocumentField field) {
+        List<InvoiceItemData> result = new ArrayList<>();
+        if (field == null || field.getValueList() == null) {
+            return result;
+        }
+        for (DocumentField item : field.getValueList()) {
+            Map<String, DocumentField> map = item.getValueMap();
+            if (map == null) {
+                continue;
+            }
+            result.add(new InvoiceItemData(stringValue(map.get("Description")), numberValue(map.get("Quantity")),
+                    amountValue(map.get("Amount"))));
+        }
+        return result;
+    }
+
+    private void putConfidence(Map<String, BigDecimal> target, String key, DocumentField field) {
+        if (field != null && field.getConfidence() != null) {
+            target.put(key, BigDecimal.valueOf(field.getConfidence()));
+        }
+    }
+
+    private BigDecimal minOf(Map<String, BigDecimal> confidences, String... keys) {
+        BigDecimal min = null;
         for (String key : keys) {
-            DocumentField field = fields.get(key);
-            if (field != null && field.getConfidence() != null) {
-                confidences.add(field.getConfidence());
+            BigDecimal value = confidences.get(key);
+            if (value != null && (min == null || value.compareTo(min) < 0)) {
+                min = value;
             }
         }
-        if (confidences.isEmpty()) {
-            return BigDecimal.ZERO;
-        }
-        double avg = confidences.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
-        return BigDecimal.valueOf(avg).setScale(3, RoundingMode.HALF_UP);
+        return min == null ? BigDecimal.ZERO : min;
     }
 
     private String stringValue(DocumentField field) {
@@ -117,12 +128,33 @@ public class AzureDocumentIntelligenceService implements DocumentIntelligenceSer
         return field == null ? null : field.getValueDate();
     }
 
-    private BigDecimal currencyValue(DocumentField field) {
+    private BigDecimal numberValue(DocumentField field) {
+        if (field == null || field.getValueNumber() == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(field.getValueNumber());
+    }
+
+    private BigDecimal amountValue(DocumentField field) {
         if (field == null) {
             return null;
         }
         CurrencyValue currency = field.getValueCurrency();
-        return currency == null ? null : BigDecimal.valueOf(currency.getAmount());
+        if (currency != null) {
+            return BigDecimal.valueOf(currency.getAmount());
+        }
+        return numberValue(field);
+    }
+
+    private String currencyCode(DocumentField field) {
+        if (field == null || field.getValueCurrency() == null) {
+            return null;
+        }
+        return field.getValueCurrency().getCurrencyCode();
+    }
+
+    private String firstNonNull(String first, String second) {
+        return first != null ? first : second;
     }
 
     private byte[] readAll(InputStream content) {

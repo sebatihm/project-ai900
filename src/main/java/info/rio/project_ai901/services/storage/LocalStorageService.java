@@ -9,6 +9,8 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Duration;
+import java.util.Map;
 
 @Service
 @ConditionalOnProperty(name = "app.storage.type", havingValue = "local", matchIfMissing = true)
@@ -21,66 +23,76 @@ public class LocalStorageService implements StorageService {
         try {
             Files.createDirectories(this.basePath);
         } catch (IOException e) {
-            throw new IllegalStateException("No se pudo crear el directorio de storage: " + this.basePath, e);
+            throw new StorageException("No se pudo crear el directorio de storage: " + this.basePath, e);
         }
     }
 
     @Override
-    public String upload(String folder, String filename, InputStream data, long size, String contentType) {
-        Path target = resolve(folder, filename);
+    public String upload(String container, String folder, String filename, InputStream data, long size,
+            String contentType, Map<String, String> metadata) {
+        String path = join(folder, filename);
+        Path target = resolve(container, path);
         try {
             Files.createDirectories(target.getParent());
             Files.copy(data, target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            throw new IllegalStateException("Error al guardar el archivo: " + target, e);
+            throw new StorageException("Error al guardar el archivo: " + target, e);
         }
-        return basePath.relativize(target).toString().replace('\\', '/');
+        return path;
     }
 
     @Override
-    public InputStream download(String path) {
-        Path target = resolveExisting(path);
+    public InputStream download(String container, String path) {
+        Path target = requireExisting(container, path);
         try {
             return Files.newInputStream(target);
         } catch (IOException e) {
-            throw new IllegalStateException("Error al leer el archivo: " + target, e);
+            throw new StorageException("Error al leer el archivo: " + target, e);
         }
     }
 
     @Override
-    public void delete(String path) {
-        Path target = resolveExisting(path);
+    public void delete(String container, String path) {
+        Path target = requireExisting(container, path);
         try {
             Files.deleteIfExists(target);
         } catch (IOException e) {
-            throw new IllegalStateException("Error al eliminar el archivo: " + target, e);
+            throw new StorageException("Error al eliminar el archivo: " + target, e);
         }
     }
 
     @Override
-    public boolean exists(String path) {
-        return Files.exists(resolve(path));
+    public boolean exists(String container, String path) {
+        return Files.exists(resolve(container, path));
     }
 
-    private Path resolveExisting(String path) {
-        Path target = resolve(path);
+    @Override
+    public String readUrl(String container, String path, Duration ttl) {
+        return "/local-storage/" + sanitize(container) + "/" + sanitize(path);
+    }
+
+    private Path requireExisting(String container, String path) {
+        Path target = resolve(container, path);
         if (!Files.exists(target)) {
-            throw new IllegalStateException("El archivo no existe: " + path);
+            throw new StorageException("El archivo no existe: " + container + "/" + path);
         }
         return target;
     }
 
-    private Path resolve(String folder, String filename) {
-        return resolve(join(folder, filename));
-    }
-
-    private Path resolve(String path) {
-        String safe = sanitize(path);
-        Path target = basePath.resolve(safe).normalize();
+    private Path resolve(String container, String path) {
+        Path target = basePath.resolve(sanitize(container)).resolve(sanitize(path)).normalize();
         if (!target.startsWith(basePath)) {
-            throw new IllegalArgumentException("La ruta se sale del directorio de storage: " + path);
+            throw new StorageException("La ruta se sale del directorio de storage: " + container + "/" + path);
         }
         return target;
+    }
+
+    private String sanitize(String value) {
+        String clean = value == null ? "" : value.replace('\\', '/').trim();
+        if (clean.isBlank() || clean.startsWith("/") || clean.contains("..")) {
+            throw new StorageException("Ruta de storage invalida: " + value);
+        }
+        return clean;
     }
 
     private String join(String folder, String filename) {
@@ -91,13 +103,5 @@ public class LocalStorageService implements StorageService {
             return folder;
         }
         return folder + "/" + filename;
-    }
-
-    private String sanitize(String path) {
-        String safe = (path == null ? "" : path).replace('\\', '/').trim();
-        if (safe.startsWith("/") || safe.contains("..")) {
-            throw new IllegalArgumentException("Ruta de archivo inválida: " + path);
-        }
-        return safe;
     }
 }
