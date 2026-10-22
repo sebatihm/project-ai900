@@ -3,6 +3,7 @@ package info.rio.project_ai901.services.invoice;
 import info.rio.project_ai901.api.dto.InvoiceDetailResponse;
 import info.rio.project_ai901.api.dto.ReviewAction;
 import info.rio.project_ai901.api.dto.ReviewRequest;
+import info.rio.project_ai901.exceptions.InvalidCredentialsException;
 import info.rio.project_ai901.exceptions.InvalidRequestException;
 import info.rio.project_ai901.exceptions.ResourceNotFoundException;
 import info.rio.project_ai901.services.storage.StorageException;
@@ -59,17 +60,17 @@ public class InvoiceReviewService {
     }
 
     @Transactional
-    public InvoiceDetailResponse review(UUID invoiceId, ReviewRequest request) {
+    public InvoiceDetailResponse review(UUID invoiceId, ReviewRequest request, String reviewerEmail) {
         if (request == null || request.action() == null) {
             throw new InvalidRequestException("La accion es obligatoria (APPROVE|REJECT)");
         }
-        if (request.reviewedBy() == null || request.reviewedBy().isBlank()) {
-            throw new InvalidRequestException("El revisor (reviewedBy) es obligatorio");
+        if (reviewerEmail == null || reviewerEmail.isBlank()) {
+            throw new InvalidCredentialsException("Autenticacion requerida");
         }
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Factura no encontrada: " + invoiceId));
-        User reviewer = userRepository.findByEmail(request.reviewedBy())
-                .orElseThrow(() -> new InvalidRequestException("Usuario no encontrado: " + request.reviewedBy()));
+        User reviewer = userRepository.findByEmailIgnoreCase(reviewerEmail)
+                .orElseThrow(() -> new InvalidCredentialsException("Usuario no encontrado: " + reviewerEmail));
 
         InvoiceStatus target = request.action() == ReviewAction.APPROVE ? InvoiceStatus.VALID
                 : InvoiceStatus.REJECTED;

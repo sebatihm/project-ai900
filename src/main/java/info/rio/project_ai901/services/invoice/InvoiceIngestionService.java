@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import info.rio.project_ai901.api.dto.InvoiceAnalysisResponse;
 import info.rio.project_ai901.api.dto.InvoiceItemResponse;
 import info.rio.project_ai901.exceptions.DuplicateInvoiceException;
+import info.rio.project_ai901.exceptions.InvalidCredentialsException;
 import info.rio.project_ai901.exceptions.InvalidRequestException;
 import info.rio.project_ai901.models.Invoice;
 import info.rio.project_ai901.models.InvoiceItem;
@@ -86,8 +87,8 @@ public class InvoiceIngestionService {
     @Transactional
     public InvoiceAnalysisResponse analyze(String originalFilename, byte[] content, String uploadedByEmail,
             UUID supplierId) {
-        User user = userRepository.findByEmail(uploadedByEmail)
-                .orElseThrow(() -> new InvalidRequestException("Usuario no encontrado: " + uploadedByEmail));
+        User user = userRepository.findByEmailIgnoreCase(uploadedByEmail)
+                .orElseThrow(() -> new InvalidCredentialsException("Usuario no encontrado: " + uploadedByEmail));
         Supplier supplier = supplierId == null ? null
                 : supplierRepository.findById(supplierId)
                         .orElseThrow(() -> new InvalidRequestException("Proveedor no encontrado: " + supplierId));

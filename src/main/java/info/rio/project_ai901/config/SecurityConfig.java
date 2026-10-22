@@ -59,6 +59,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login").permitAll()
                         .requestMatchers("/auth/me").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/invoice-analyzer", "/invoice/*/review")
+                        .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT")
                         .requestMatchers(HttpMethod.PUT, "/ticket/*/assign")
                         .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT", "BRANCH_MANAGER")
                         .requestMatchers("/user/**", "/role/**").hasAnyRole("ADMIN", "BOSS")
