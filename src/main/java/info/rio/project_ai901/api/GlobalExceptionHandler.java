@@ -2,6 +2,7 @@ package info.rio.project_ai901.api;
 
 import info.rio.project_ai901.exceptions.DuplicateInvoiceException;
 import info.rio.project_ai901.exceptions.DuplicateResourceException;
+import info.rio.project_ai901.exceptions.InvalidCredentialsException;
 import info.rio.project_ai901.exceptions.InvalidRequestException;
 import info.rio.project_ai901.exceptions.InvoiceValidationException;
 import info.rio.project_ai901.exceptions.ResourceInUseException;
@@ -72,6 +73,13 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleInvalidRequest(InvalidRequestException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         problem.setTitle("Solicitud invalida");
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ProblemDetail handleInvalidCredentials(InvalidCredentialsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+        problem.setTitle("Credenciales invalidas");
         return problem;
     }
 
