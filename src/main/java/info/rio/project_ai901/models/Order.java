@@ -45,7 +45,7 @@ public class Order {
     private Branch branch;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "salesperson_id", nullable = false)
+    @JoinColumn(name = "salesperson_id")
     private User salesperson;
 
     @Enumerated(EnumType.STRING)
