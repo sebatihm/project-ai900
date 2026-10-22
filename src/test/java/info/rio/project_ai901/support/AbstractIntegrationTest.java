@@ -16,6 +16,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -109,5 +110,28 @@ public abstract class AbstractIntegrationTest {
     protected String orderBody(UUID customerId, UUID branchId, UUID productId, int quantity) {
         return "{\"customerId\":\"" + customerId + "\",\"branchId\":\"" + branchId + "\","
                 + "\"items\":[{\"productId\":\"" + productId + "\",\"quantity\":" + quantity + "}]}";
+    }
+
+    protected UUID createTicket(UUID customerId, UUID orderId, String subject, String channel) throws Exception {
+        String orderPart = orderId != null ? "\"orderId\":\"" + orderId + "\"," : "";
+        String response = postJson("/ticket",
+                "{\"customerId\":\"" + customerId + "\"," + orderPart
+                        + "\"subject\":\"" + subject + "\",\"channel\":\"" + channel + "\"}");
+        return UUID.fromString(dataField(response, "id"));
+    }
+
+    protected UUID createResolvedTicket(UUID customerId, UUID orderId, String subject) throws Exception {
+        UUID ticketId = createTicket(customerId, orderId, subject, "EMAIL");
+        mockMvc.perform(put("/ticket/{id}/status", ticketId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"RESOLVED\"}"))
+                .andExpect(status().isOk());
+        return ticketId;
+    }
+
+    protected UUID addTicketMessage(UUID ticketId, String author, String content) throws Exception {
+        String response = postJson("/ticket/" + ticketId + "/message",
+                "{\"author\":\"" + author + "\",\"content\":\"" + content + "\"}");
+        return UUID.fromString(dataField(response, "id"));
     }
 }
