@@ -33,6 +33,6 @@ public class Branch {
     @Column(nullable = false)
     private String city;
 
-    @Column(nullable = false, columnDefinition = "bit(1) not null default b'1'")
+    @Column(nullable = false, columnDefinition = "bit(1)")
     private boolean active = true;
 }
