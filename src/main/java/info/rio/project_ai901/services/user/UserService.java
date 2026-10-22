@@ -16,9 +16,11 @@ import info.rio.project_ai901.models.User;
 import info.rio.project_ai901.models.Warehouse;
 import info.rio.project_ai901.models.enums.InvoiceStatus;
 import info.rio.project_ai901.models.enums.RoleName;
+import info.rio.project_ai901.models.enums.TicketStatus;
 import info.rio.project_ai901.repositories.BranchRepository;
 import info.rio.project_ai901.repositories.InvoiceRepository;
 import info.rio.project_ai901.repositories.RoleRepository;
+import info.rio.project_ai901.repositories.TicketRepository;
 import info.rio.project_ai901.repositories.UserRepository;
 import info.rio.project_ai901.repositories.WarehouseRepository;
 import org.springframework.data.domain.Page;
@@ -38,22 +40,28 @@ public class UserService {
     private static final List<InvoiceStatus> PENDING_INVOICE_STATUSES = List.of(InvoiceStatus.VALID,
             InvoiceStatus.SUSPICIOUS);
 
+    private static final List<TicketStatus> PENDING_TICKET_STATUSES = List.of(TicketStatus.OPEN,
+            TicketStatus.IN_PROGRESS);
+
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final BranchRepository branchRepository;
     private final WarehouseRepository warehouseRepository;
     private final InvoiceRepository invoiceRepository;
+    private final TicketRepository ticketRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper mapper;
 
     public UserService(UserRepository userRepository, RoleRepository roleRepository,
             BranchRepository branchRepository, WarehouseRepository warehouseRepository,
-            InvoiceRepository invoiceRepository, PasswordEncoder passwordEncoder, UserMapper mapper) {
+            InvoiceRepository invoiceRepository, TicketRepository ticketRepository,
+            PasswordEncoder passwordEncoder, UserMapper mapper) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.branchRepository = branchRepository;
         this.warehouseRepository = warehouseRepository;
         this.invoiceRepository = invoiceRepository;
+        this.ticketRepository = ticketRepository;
         this.passwordEncoder = passwordEncoder;
         this.mapper = mapper;
     }
@@ -147,6 +155,11 @@ public class UserService {
         if (pending > 0) {
             throw new ResourceInUseException(
                     "No se puede desactivar el usuario porque tiene facturas pendientes de revision");
+        }
+        long pendingTickets = ticketRepository.countByAssignedTo_IdAndStatusIn(id, PENDING_TICKET_STATUSES);
+        if (pendingTickets > 0) {
+            throw new ResourceInUseException(
+                    "No se puede desactivar el usuario porque tiene tickets asignados en curso");
         }
         user.setActive(false);
         user.setUpdatedAt(LocalDateTime.now());

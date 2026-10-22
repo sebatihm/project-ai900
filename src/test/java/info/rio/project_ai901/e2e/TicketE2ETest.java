@@ -1,7 +1,9 @@
 package info.rio.project_ai901.e2e;
 
 import com.jayway.jsonpath.JsonPath;
+import info.rio.project_ai901.models.User;
 import info.rio.project_ai901.models.enums.CustomerType;
+import info.rio.project_ai901.models.enums.RoleName;
 import info.rio.project_ai901.support.AbstractIntegrationTest;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -364,5 +366,108 @@ class TicketE2ETest extends AbstractIntegrationTest {
         String response = getJson("/ticket/" + ticketId);
         Assertions.assertThat(JsonPath.parse(response).read("$.data.id", String.class))
                 .isEqualTo(ticketId.toString());
+    }
+
+    @Test
+    void asignaElTicketAUnUsuarioDeSoporte() throws Exception {
+        UUID branchId = createBranch("SUC-TCK-G");
+        UUID customerId = createCustomer("Hotel Asignado", CustomerType.HOTEL, branchId);
+        UUID ticketId = createTicket(customerId, null, "Requiere soporte", "EMAIL");
+        UUID adminId = createUser("Admin Ticket", "admin.ticket@ai901.local", "Admin@123", RoleName.ADMIN);
+        UUID supportId = createUser("Soporte Uno", "soporte.ticket@ai901.local", "Admin@123",
+                RoleName.ADMIN_SUPPORT);
+        String token = login("admin.ticket@ai901.local", "Admin@123");
+
+        mockMvc.perform(put("/ticket/{id}/assign", ticketId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + supportId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.assignedToId").value(supportId.toString()))
+                .andExpect(jsonPath("$.data.assignedToName").value("Soporte Uno"))
+                .andExpect(jsonPath("$.data.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.data.handledBy").value("HUMAN"));
+
+        mockMvc.perform(get("/ticket?assignedToId=" + supportId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[*].id", hasItem(ticketId.toString())))
+                .andExpect(jsonPath("$.data.items[*].assignedToId", hasItem(supportId.toString())));
+    }
+
+    @Test
+    void rechazaAsignarTicketSinToken() throws Exception {
+        UUID branchId = createBranch("SUC-TCK-H");
+        UUID customerId = createCustomer("Hotel Sin Token", CustomerType.HOTEL, branchId);
+        UUID ticketId = createTicket(customerId, null, "Sin token", "EMAIL");
+        UUID supportId = createUser("Soporte Dos", "soporte.dos@ai901.local", "Admin@123",
+                RoleName.ADMIN_SUPPORT);
+
+        mockMvc.perform(put("/ticket/{id}/assign", ticketId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + supportId + "\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void rechazaAsignarTicketAUsuarioInactivo() throws Exception {
+        UUID branchId = createBranch("SUC-TCK-I");
+        UUID customerId = createCustomer("Hotel Soporte Inactivo", CustomerType.HOTEL, branchId);
+        UUID ticketId = createTicket(customerId, null, "Soporte inactivo", "EMAIL");
+        createUser("Admin Inactivo", "admin.inactivo@ai901.local", "Admin@123", RoleName.ADMIN);
+        UUID supportId = createUser("Soporte Tres", "soporte.tres@ai901.local", "Admin@123",
+                RoleName.ADMIN_SUPPORT);
+        User support = userRepository.findById(supportId).orElseThrow();
+        support.setActive(false);
+        userRepository.save(support);
+        String token = login("admin.inactivo@ai901.local", "Admin@123");
+
+        mockMvc.perform(put("/ticket/{id}/assign", ticketId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + supportId + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Solicitud invalida"))
+                .andExpect(jsonPath("$.detail", containsString("no esta activo")));
+    }
+
+    @Test
+    void rechazaAsignarTicketAUsuarioConRolNoAsignable() throws Exception {
+        UUID branchId = createBranch("SUC-TCK-J");
+        UUID customerId = createCustomer("Hotel Almacen", CustomerType.HOTEL, branchId);
+        UUID ticketId = createTicket(customerId, null, "Rol no asignable", "EMAIL");
+        createUser("Admin Roles", "admin.roles@ai901.local", "Admin@123", RoleName.ADMIN);
+        UUID warehouseHeadId = createUser("Jefe Almacen", "jefe.almacen@ai901.local", "Admin@123",
+                RoleName.WAREHOUSE_HEAD);
+        String token = login("admin.roles@ai901.local", "Admin@123");
+
+        mockMvc.perform(put("/ticket/{id}/assign", ticketId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + warehouseHeadId + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail", containsString("no puede tomar tickets")));
+    }
+
+    @Test
+    void noPermiteDesactivarUnUsuarioConTicketsAsignadosEnCurso() throws Exception {
+        UUID branchId = createBranch("SUC-TCK-K");
+        UUID customerId = createCustomer("Hotel Guarda", CustomerType.HOTEL, branchId);
+        UUID ticketId = createTicket(customerId, null, "Ticket en curso", "EMAIL");
+        createUser("Admin Guarda", "admin.guarda@ai901.local", "Admin@123", RoleName.ADMIN);
+        UUID supportId = createUser("Soporte Cuatro", "soporte.cuatro@ai901.local", "Admin@123",
+                RoleName.ADMIN_SUPPORT);
+        String token = login("admin.guarda@ai901.local", "Admin@123");
+
+        mockMvc.perform(put("/ticket/{id}/assign", ticketId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + supportId + "\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/user/{id}", supportId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Recurso en uso"))
+                .andExpect(jsonPath("$.detail", containsString("tickets asignados en curso")));
     }
 }

@@ -15,6 +15,7 @@ import info.rio.project_ai901.models.enums.RoleName;
 import info.rio.project_ai901.repositories.BranchRepository;
 import info.rio.project_ai901.repositories.InvoiceRepository;
 import info.rio.project_ai901.repositories.RoleRepository;
+import info.rio.project_ai901.repositories.TicketRepository;
 import info.rio.project_ai901.repositories.UserRepository;
 import info.rio.project_ai901.repositories.WarehouseRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,7 @@ class UserServiceTest {
     private BranchRepository branchRepository;
     private WarehouseRepository warehouseRepository;
     private InvoiceRepository invoiceRepository;
+    private TicketRepository ticketRepository;
     private PasswordEncoder passwordEncoder;
     private UserService service;
 
@@ -50,9 +52,10 @@ class UserServiceTest {
         branchRepository = Mockito.mock(BranchRepository.class);
         warehouseRepository = Mockito.mock(WarehouseRepository.class);
         invoiceRepository = Mockito.mock(InvoiceRepository.class);
+        ticketRepository = Mockito.mock(TicketRepository.class);
         passwordEncoder = new BCryptPasswordEncoder();
         service = new UserService(userRepository, roleRepository, branchRepository, warehouseRepository,
-                invoiceRepository, passwordEncoder, new UserMapper());
+                invoiceRepository, ticketRepository, passwordEncoder, new UserMapper());
     }
 
     @Test
@@ -195,6 +198,36 @@ class UserServiceTest {
         when(invoiceRepository.countByLoadedBy_IdAndStatusIn(any(), anyList())).thenReturn(1L);
 
         assertThatThrownBy(() -> service.deactivate(id)).isInstanceOf(ResourceInUseException.class);
+    }
+
+    @Test
+    void noDesactivaUsuarioConTicketsAsignadosEnCurso() {
+        UUID id = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        User user = user(id, "ana@ai901.local", role(roleId, RoleName.ADMIN), true);
+        when(userRepository.findById(id)).thenReturn(Optional.of(user));
+        when(invoiceRepository.countByLoadedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
+        when(invoiceRepository.countByReviewedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
+        when(ticketRepository.countByAssignedTo_IdAndStatusIn(any(), anyList())).thenReturn(2L);
+
+        assertThatThrownBy(() -> service.deactivate(id))
+                .isInstanceOf(ResourceInUseException.class)
+                .hasMessageContaining("tickets asignados en curso");
+    }
+
+    @Test
+    void desactivaUsuarioSinTicketsAsignados() {
+        UUID id = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        User user = user(id, "ana@ai901.local", role(roleId, RoleName.ADMIN), true);
+        when(userRepository.findById(id)).thenReturn(Optional.of(user));
+        when(invoiceRepository.countByLoadedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
+        when(invoiceRepository.countByReviewedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
+        when(ticketRepository.countByAssignedTo_IdAndStatusIn(any(), anyList())).thenReturn(0L);
+
+        UserDetailResponse result = service.deactivate(id);
+
+        assertThat(result.active()).isFalse();
     }
 
     @Test

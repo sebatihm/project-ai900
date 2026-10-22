@@ -22,6 +22,8 @@ public record TicketDetailResponse(
         UUID customerId,
         String customerName,
         UUID orderId,
+        UUID assignedToId,
+        String assignedToName,
         LocalDateTime createdAt,
         int messageCount) {
 }

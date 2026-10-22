@@ -21,5 +21,7 @@ public record TicketSummaryResponse(
         UUID customerId,
         String customerName,
         UUID orderId,
+        UUID assignedToId,
+        String assignedToName,
         LocalDateTime createdAt) {
 }

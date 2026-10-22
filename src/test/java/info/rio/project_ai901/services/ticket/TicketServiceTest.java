@@ -1,5 +1,6 @@
 package info.rio.project_ai901.services.ticket;
 
+import info.rio.project_ai901.api.dto.AssignTicketRequest;
 import info.rio.project_ai901.api.dto.CreateTicketMessageRequest;
 import info.rio.project_ai901.api.dto.CreateTicketRequest;
 import info.rio.project_ai901.api.dto.PaginatedResponse;
@@ -12,12 +13,16 @@ import info.rio.project_ai901.exceptions.InvalidRequestException;
 import info.rio.project_ai901.exceptions.ResourceInUseException;
 import info.rio.project_ai901.exceptions.ResourceNotFoundException;
 import info.rio.project_ai901.models.Customer;
+import info.rio.project_ai901.models.Branch;
+import info.rio.project_ai901.models.Role;
 import info.rio.project_ai901.models.Ticket;
 import info.rio.project_ai901.models.TicketMessage;
+import info.rio.project_ai901.models.User;
 import info.rio.project_ai901.models.enums.CustomerType;
 import info.rio.project_ai901.models.enums.HandledBy;
 import info.rio.project_ai901.models.enums.MessageAction;
 import info.rio.project_ai901.models.enums.MessageAuthor;
+import info.rio.project_ai901.models.enums.RoleName;
 import info.rio.project_ai901.models.enums.TicketChannel;
 import info.rio.project_ai901.models.enums.TicketSentiment;
 import info.rio.project_ai901.models.enums.TicketStatus;
@@ -26,6 +31,7 @@ import info.rio.project_ai901.repositories.CustomerRepository;
 import info.rio.project_ai901.repositories.OrderRepository;
 import info.rio.project_ai901.repositories.TicketMessageRepository;
 import info.rio.project_ai901.repositories.TicketRepository;
+import info.rio.project_ai901.repositories.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -54,6 +60,7 @@ class TicketServiceTest {
     private TicketMessageRepository ticketMessageRepository;
     private CustomerRepository customerRepository;
     private OrderRepository orderRepository;
+    private UserRepository userRepository;
     private TicketService service;
 
     @BeforeEach
@@ -62,8 +69,9 @@ class TicketServiceTest {
         ticketMessageRepository = Mockito.mock(TicketMessageRepository.class);
         customerRepository = Mockito.mock(CustomerRepository.class);
         orderRepository = Mockito.mock(OrderRepository.class);
+        userRepository = Mockito.mock(UserRepository.class);
         service = new TicketService(ticketRepository, ticketMessageRepository, customerRepository, orderRepository,
-                new TicketMapper());
+                userRepository, new TicketMapper());
         when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> {
             Ticket ticket = invocation.getArgument(0);
             if (ticket.getId() == null) {
@@ -293,12 +301,12 @@ class TicketServiceTest {
         UUID customerId = UUID.randomUUID();
         Pageable requested = PageRequest.of(0, 100, Sort.by("createdAt").descending());
         when(ticketRepository.search(eq(customerId), eq(TicketStatus.OPEN), eq(TicketTopic.DELAY),
-                eq(HandledBy.AGENT), any(Pageable.class)))
+                eq(HandledBy.AGENT), eq(null), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(ticket(UUID.randomUUID(), customerId, TicketStatus.OPEN)),
                         requested, 1));
 
         PaginatedResponse<TicketSummaryResponse> result = service.list(customerId, TicketStatus.OPEN,
-                TicketTopic.DELAY, HandledBy.AGENT, 0L, 500);
+                TicketTopic.DELAY, HandledBy.AGENT, null, 0L, 500);
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().getFirst().subject()).isEqualTo("Asunto del ticket");
@@ -306,9 +314,136 @@ class TicketServiceTest {
         assertThat(result.limit()).isEqualTo(100);
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
         verify(ticketRepository).search(eq(customerId), eq(TicketStatus.OPEN), eq(TicketTopic.DELAY),
-                eq(HandledBy.AGENT), captor.capture());
+                eq(HandledBy.AGENT), eq(null), captor.capture());
         assertThat(captor.getValue().getSort().getOrderFor("createdAt")).isNotNull();
         assertThat(captor.getValue().getSort().getOrderFor("createdAt").isDescending()).isTrue();
+    }
+
+    @Test
+    void filtraTicketsPorUsuarioAsignado() {
+        UUID customerId = UUID.randomUUID();
+        UUID assignedToId = UUID.randomUUID();
+        Pageable requested = PageRequest.of(0, 20, Sort.by("createdAt").descending());
+        Ticket asignado = ticket(UUID.randomUUID(), customerId, TicketStatus.IN_PROGRESS);
+        asignado.setAssignedTo(user(assignedToId, "Soporte Uno", RoleName.ADMIN_SUPPORT, true, null));
+        when(ticketRepository.search(eq(null), eq(null), eq(null), eq(null), eq(assignedToId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(asignado), requested, 1));
+
+        PaginatedResponse<TicketSummaryResponse> result = service.list(null, null, null, null, assignedToId, 0L, 20);
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().getFirst().assignedToId()).isEqualTo(assignedToId);
+        assertThat(result.items().getFirst().assignedToName()).isEqualTo("Soporte Uno");
+    }
+
+    @Test
+    void asignaTicketAUsuarioDeSoporteYLoPoneEnProgreso() {
+        UUID id = UUID.randomUUID();
+        UUID assignedToId = UUID.randomUUID();
+        Ticket ticket = ticket(id, UUID.randomUUID(), TicketStatus.OPEN);
+        ticket.setHandledBy(HandledBy.AGENT);
+        when(ticketRepository.findById(id)).thenReturn(Optional.of(ticket));
+        when(userRepository.findById(assignedToId))
+                .thenReturn(Optional.of(user(assignedToId, "Soporte Uno", RoleName.ADMIN_SUPPORT, true, null)));
+
+        TicketDetailResponse result = service.assign(id, new AssignTicketRequest(assignedToId));
+
+        assertThat(result.assignedToId()).isEqualTo(assignedToId);
+        assertThat(result.assignedToName()).isEqualTo("Soporte Uno");
+        assertThat(result.status()).isEqualTo(TicketStatus.IN_PROGRESS);
+        assertThat(result.handledBy()).isEqualTo(HandledBy.HUMAN);
+        verify(ticketRepository).save(ticket);
+    }
+
+    @Test
+    void desasignaTicketYLoRegresaAAbierto() {
+        UUID id = UUID.randomUUID();
+        UUID assignedToId = UUID.randomUUID();
+        Ticket ticket = ticket(id, UUID.randomUUID(), TicketStatus.IN_PROGRESS);
+        ticket.setAssignedTo(user(assignedToId, "Soporte Uno", RoleName.ADMIN_SUPPORT, true, null));
+        when(ticketRepository.findById(id)).thenReturn(Optional.of(ticket));
+
+        TicketDetailResponse result = service.assign(id, new AssignTicketRequest(null));
+
+        assertThat(result.assignedToId()).isNull();
+        assertThat(result.assignedToName()).isNull();
+        assertThat(result.status()).isEqualTo(TicketStatus.OPEN);
+        assertThat(result.handledBy()).isEqualTo(HandledBy.AGENT);
+        verify(ticketRepository).save(ticket);
+    }
+
+    @Test
+    void rechazaAsignarTicketAUsuarioDesconocido() {
+        UUID id = UUID.randomUUID();
+        UUID assignedToId = UUID.randomUUID();
+        when(ticketRepository.findById(id)).thenReturn(Optional.of(ticket(id, UUID.randomUUID(), TicketStatus.OPEN)));
+        when(userRepository.findById(assignedToId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.assign(id, new AssignTicketRequest(assignedToId)))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Usuario no encontrado");
+        verify(ticketRepository, never()).save(any(Ticket.class));
+    }
+
+    @Test
+    void rechazaAsignarTicketAUsuarioInactivo() {
+        UUID id = UUID.randomUUID();
+        UUID assignedToId = UUID.randomUUID();
+        when(ticketRepository.findById(id)).thenReturn(Optional.of(ticket(id, UUID.randomUUID(), TicketStatus.OPEN)));
+        when(userRepository.findById(assignedToId))
+                .thenReturn(Optional.of(user(assignedToId, "Soporte Uno", RoleName.ADMIN_SUPPORT, false, null)));
+
+        assertThatThrownBy(() -> service.assign(id, new AssignTicketRequest(assignedToId)))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("no esta activo");
+        verify(ticketRepository, never()).save(any(Ticket.class));
+    }
+
+    @Test
+    void rechazaAsignarTicketAUsuarioConRolNoAsignable() {
+        UUID id = UUID.randomUUID();
+        UUID assignedToId = UUID.randomUUID();
+        when(ticketRepository.findById(id)).thenReturn(Optional.of(ticket(id, UUID.randomUUID(), TicketStatus.OPEN)));
+        when(userRepository.findById(assignedToId))
+                .thenReturn(Optional.of(user(assignedToId, "Jefe Almacen", RoleName.WAREHOUSE_HEAD, true, null)));
+
+        assertThatThrownBy(() -> service.assign(id, new AssignTicketRequest(assignedToId)))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("no puede tomar tickets");
+        verify(ticketRepository, never()).save(any(Ticket.class));
+    }
+
+    @Test
+    void rechazaAsignarTicketAEncargadoDeSucursalDeOtraSucursal() {
+        UUID id = UUID.randomUUID();
+        UUID assignedToId = UUID.randomUUID();
+        Ticket ticket = ticket(id, UUID.randomUUID(), TicketStatus.OPEN);
+        ticket.getCustomer().setBranch(branch(UUID.randomUUID(), "SUC-01"));
+        when(ticketRepository.findById(id)).thenReturn(Optional.of(ticket));
+        when(userRepository.findById(assignedToId)).thenReturn(Optional.of(user(assignedToId, "Encargado Norte",
+                RoleName.BRANCH_MANAGER, true, branch(UUID.randomUUID(), "SUC-02"))));
+
+        assertThatThrownBy(() -> service.assign(id, new AssignTicketRequest(assignedToId)))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("sucursal");
+        verify(ticketRepository, never()).save(any(Ticket.class));
+    }
+
+    @Test
+    void asignaTicketAEncargadoDeLaMismaSucursal() {
+        UUID id = UUID.randomUUID();
+        UUID assignedToId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        Ticket ticket = ticket(id, UUID.randomUUID(), TicketStatus.OPEN);
+        ticket.getCustomer().setBranch(branch(branchId, "SUC-01"));
+        when(ticketRepository.findById(id)).thenReturn(Optional.of(ticket));
+        when(userRepository.findById(assignedToId)).thenReturn(Optional.of(user(assignedToId, "Encargada Centro",
+                RoleName.BRANCH_MANAGER, true, branch(branchId, "SUC-01"))));
+
+        TicketDetailResponse result = service.assign(id, new AssignTicketRequest(assignedToId));
+
+        assertThat(result.assignedToId()).isEqualTo(assignedToId);
+        assertThat(result.status()).isEqualTo(TicketStatus.IN_PROGRESS);
     }
 
     @Test
@@ -377,6 +512,32 @@ class TicketServiceTest {
         customer.setType(CustomerType.HOTEL);
         customer.setEmail("contacto@miramar.test");
         return customer;
+    }
+
+    private Branch branch(UUID id, String code) {
+        Branch branch = new Branch();
+        branch.setId(id);
+        branch.setCode(code);
+        branch.setName("Sucursal " + code);
+        branch.setCity("CDMX");
+        branch.setActive(true);
+        return branch;
+    }
+
+    private User user(UUID id, String name, RoleName roleName, boolean active, Branch branch) {
+        Role role = new Role();
+        role.setId(UUID.randomUUID());
+        role.setName(roleName);
+
+        User user = new User();
+        user.setId(id);
+        user.setName(name);
+        user.setEmail(name.toLowerCase().replaceAll("[^a-z0-9]+", ".") + "@ai901.local");
+        user.setPassword("$2a$10$hash");
+        user.setRole(role);
+        user.setBranch(branch);
+        user.setActive(active);
+        return user;
     }
 
     private Ticket ticket(UUID id, UUID customerId, TicketStatus status) {
