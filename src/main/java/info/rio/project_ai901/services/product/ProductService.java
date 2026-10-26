@@ -64,14 +64,50 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public PaginatedResponse<ProductSummaryResponse> list(long offset, int limit) {
+        return list(offset, limit, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PaginatedResponse<ProductSummaryResponse> list(
+            long offset,
+            int limit,
+            String search) {
+
         int size = clampLimit(limit);
         long safeOffset = Math.max(offset, 0);
-        PageRequest pageable = PageRequest.of((int) (safeOffset / size), size, Sort.by("sku").ascending());
-        Page<Product> pageResult = productRepository.findAll(pageable);
-        List<ProductSummaryResponse> items = pageResult.getContent().stream()
+
+        PageRequest pageable = PageRequest.of(
+                (int) (safeOffset / size),
+                size,
+                Sort.by("sku").ascending()
+        );
+
+        Page<Product> pageResult;
+
+        if (search == null || search.isBlank()) {
+            pageResult = productRepository.findAll(pageable);
+        } else {
+            String term = search.trim();
+
+            pageResult = productRepository
+                    .findByNameContainingIgnoreCaseOrSkuContainingIgnoreCase(
+                            term,
+                            term,
+                            pageable
+                    );
+        }
+
+        List<ProductSummaryResponse> items = pageResult.getContent()
+                .stream()
                 .map(mapper::toSummary)
                 .toList();
-        return new PaginatedResponse<>(items, pageResult.getTotalElements(), safeOffset, size);
+
+        return new PaginatedResponse<>(
+                items,
+                pageResult.getTotalElements(),
+                safeOffset,
+                size
+        );
     }
 
     @Transactional(readOnly = true)

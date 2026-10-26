@@ -64,6 +64,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/ticket/*/assign")
                         .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT", "BRANCH_MANAGER")
                         .requestMatchers("/user/**", "/role/**").hasAnyRole("ADMIN", "BOSS")
+                        .requestMatchers("/chat/public").permitAll()
+                        .requestMatchers("/chat").authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(handling -> handling.authenticationEntryPoint(
                         new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))

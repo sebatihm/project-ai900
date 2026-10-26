@@ -9,6 +9,8 @@ import com.azure.ai.documentintelligence.models.CurrencyValue;
 import com.azure.ai.documentintelligence.models.DocumentField;
 import com.azure.core.util.BinaryData;
 import com.azure.core.util.polling.SyncPoller;
+import com.azure.json.JsonProviders;
+
 import info.rio.project_ai901.services.ai.dto.InvoiceItemData;
 import info.rio.project_ai901.services.ai.dto.InvoiceOcrResult;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -23,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.azure.json.JsonWriter;
 @Service
 @ConditionalOnProperty(name = "app.ai.di.provider", havingValue = "azure")
 public class AzureDocumentIntelligenceService implements DocumentIntelligenceService {
@@ -76,13 +80,16 @@ public class AzureDocumentIntelligenceService implements DocumentIntelligenceSer
         return result;
     }
 
-    private String toJson(AnalyzeResult analyzeResult) {
-        try {
-            return analyzeResult.toJsonString();
-        } catch (IOException e) {
-            return null;
-        }
+private String toJson(AnalyzeResult analyzeResult) {
+    try (StringWriter out = new StringWriter();
+         JsonWriter writer = JsonProviders.createWriter(out)) {
+        analyzeResult.toJson(writer);
+        writer.flush();
+        return out.toString();
+    } catch (Exception e) {
+        return null;
     }
+}
 
     private List<InvoiceItemData> items(DocumentField field) {
         List<InvoiceItemData> result = new ArrayList<>();

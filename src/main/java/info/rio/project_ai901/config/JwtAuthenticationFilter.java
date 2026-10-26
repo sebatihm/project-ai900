@@ -1,5 +1,6 @@
 package info.rio.project_ai901.config;
 
+import info.rio.project_ai901.aiTools.UserContext;
 import info.rio.project_ai901.services.auth.JwtService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -16,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Filtro que autentica la peticion a partir del token JWT bearer. Es
@@ -54,6 +56,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (email == null || email.isBlank() || role == null || role.isBlank()) {
                 return;
             }
+
+            String wh = claims.get("warehouseId", String.class);
+            UserContext ctx = new UserContext(
+                UUID.fromString(claims.get("userId", String.class)),
+                claims.get("name", String.class),
+                claims.get("role", String.class),
+                wh == null ? null : UUID.fromString(wh));
+            
+            request.setAttribute("userContext", ctx);
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(email, null,
                     List.of(new SimpleGrantedAuthority("ROLE_" + role)));
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
