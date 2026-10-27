@@ -4,6 +4,7 @@ import info.rio.project_ai901.api.dto.CreateOrderItemRequest;
 import info.rio.project_ai901.api.dto.CreateOrderRequest;
 import info.rio.project_ai901.api.dto.OrderDetailResponse;
 import info.rio.project_ai901.api.dto.OrderSummaryResponse;
+import info.rio.project_ai901.api.dto.OrderTrackingResponse;
 import info.rio.project_ai901.api.dto.PaginatedResponse;
 import info.rio.project_ai901.api.dto.UpdateOrderRequest;
 import info.rio.project_ai901.exceptions.InvalidRequestException;
@@ -34,6 +35,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -162,6 +164,15 @@ public class OrderService {
         }
         orderItemRepository.deleteByOrder_Id(id);
         orderRepository.delete(order);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<OrderTrackingResponse> trackByCode(String code) {
+        return orderRepository.findByCodeIgnoreCase(code).map(o -> new OrderTrackingResponse(
+                o.getCode(),
+                o.getStatus().name(),
+                o.getOrderDate() == null ? null : o.getOrderDate().toString(),
+                o.getEstimatedDeliveryDate() == null ? null : o.getEstimatedDeliveryDate().toString()));
     }
 
     private BigDecimal saveItems(Order order, List<CreateOrderItemRequest> items) {
