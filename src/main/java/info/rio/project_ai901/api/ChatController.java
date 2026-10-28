@@ -1,14 +1,10 @@
 package info.rio.project_ai901.api;
 
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestAttribute;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
 import info.rio.project_ai901.aiTools.UserContext;
 import info.rio.project_ai901.services.ai.AgentService;
-
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/chat")
@@ -20,17 +16,29 @@ public class ChatController {
         this.agentService = agentService;
     }
 
-    public record ChatRequest(String mensaje) {}
-    public record ChatResponse(String respuesta) {}
+    public record ChatRequest(String mensaje, String conversationId) {}
+    public record ChatResponse(String respuesta, String conversationId) {}
 
     @PostMapping
-    public ChatResponse chat(@RequestBody ChatRequest request, @RequestAttribute("userContext") UserContext ctx) {
-        System.out.println("REQUEST=" + request);
-        System.out.println("MENSAJE=" + (request == null ? "request null" : request.mensaje()));
-        return new ChatResponse(agentService.responseInventory(request.mensaje(), ctx));
+    public ChatResponse chat(@RequestBody ChatRequest request,
+                             @RequestAttribute("userContext") UserContext ctx) {
+        validate(request);
+        AgentService.AgentReply reply =
+                agentService.responseInventory(request.mensaje(), ctx, request.conversationId());
+        return new ChatResponse(reply.text(), reply.conversationId());
     }
+
     @PostMapping("/public")
-    public ChatResponse chatAssistant(@RequestBody ChatRequest request) {
-        return new ChatResponse(agentService.responseAssistant(request.mensaje()));
+    public ChatResponse chatPublic(@RequestBody ChatRequest request) {
+        validate(request);
+        AgentService.AgentReply reply =
+                agentService.responseAssistant(request.mensaje(), request.conversationId());
+        return new ChatResponse(reply.text(), reply.conversationId());
+    }
+
+    private void validate(ChatRequest request) {
+        if (request == null || request.mensaje() == null || request.mensaje().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El mensaje es obligatorio");
+        }
     }
 }

@@ -19,7 +19,11 @@ import info.rio.project_ai901.models.Ticket;
 import info.rio.project_ai901.models.TicketMessage;
 import info.rio.project_ai901.models.User;
 import info.rio.project_ai901.models.enums.HandledBy;
+import info.rio.project_ai901.models.enums.MessageAction;
+import info.rio.project_ai901.models.enums.MessageAuthor;
 import info.rio.project_ai901.models.enums.RoleName;
+import info.rio.project_ai901.models.enums.TicketChannel;
+import info.rio.project_ai901.models.enums.TicketSentiment;
 import info.rio.project_ai901.models.enums.TicketStatus;
 import info.rio.project_ai901.models.enums.TicketTopic;
 import info.rio.project_ai901.repositories.CustomerRepository;
@@ -37,6 +41,7 @@ import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -170,6 +175,52 @@ public class TicketService {
         }
         ticketRepository.save(ticket);
         return mapper.toDetail(ticket, ticketMessageRepository.countByTicket_Id(id));
+    }
+
+    public record AgentTicketResult(UUID ticketId, boolean created) {}
+
+    @Transactional
+    public AgentTicketResult createFromAgent(String orderCode, String subject, TicketTopic topic,
+            TicketSentiment sentiment, String summary, boolean requiresHumanReview, String source) {
+
+        Order order = orderRepository.findByCodeIgnoreCase(orderCode.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontro un pedido con ese codigo"));
+
+        Optional<Ticket> open = ticketRepository.findFirstByOrder_IdAndTopicAndStatusInOrderByCreatedAtDesc(
+                order.getId(), topic, List.of(TicketStatus.OPEN, TicketStatus.IN_PROGRESS));
+
+        // El cliente vuelve: se agrega seguimiento al ticket existente y sube la prioridad
+        if (open.isPresent()) {
+            Ticket ticket = open.get();
+            ticket.setRequiresHumanReview(true);
+            if (sentiment == TicketSentiment.NEGATIVE) {
+                ticket.setSentiment(sentiment);
+            }
+            ticketRepository.save(ticket);
+            addMessage(ticket.getId(), new CreateTicketMessageRequest(
+                    MessageAuthor.AGENT, "Seguimiento del cliente: " + summary,
+                    MessageAction.ESCALATE, source));
+            return new AgentTicketResult(ticket.getId(), false);
+        }
+
+        // Ticket nuevo
+        CreateTicketMessageRequest message = new CreateTicketMessageRequest(
+                MessageAuthor.AGENT, summary,
+                requiresHumanReview ? MessageAction.ESCALATE : MessageAction.CREATE_TICKET,
+                source);
+
+        TicketDetailResponse detail = create(new CreateTicketRequest(
+                order.getCustomer().getId(),   // el cliente sale del pedido
+                order.getId(),
+                subject,
+                TicketChannel.PORTAL,          // lo fija el codigo, no el modelo
+                topic,
+                sentiment,
+                HandledBy.AGENT,
+                requiresHumanReview,
+                message));
+
+        return new AgentTicketResult(detail.id(), true);
     }
 
     @Transactional

@@ -10,7 +10,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface TicketRepository extends JpaRepository<Ticket, UUID> {
@@ -29,4 +31,7 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     Page<Ticket> search(@Param("customerId") UUID customerId, @Param("status") TicketStatus status,
             @Param("topic") TicketTopic topic, @Param("handledBy") HandledBy handledBy,
             @Param("assignedToId") UUID assignedToId, Pageable pageable);
+        
+        Optional<Ticket> findFirstByOrder_IdAndTopicAndStatusInOrderByCreatedAtDesc(
+                UUID orderId, TicketTopic topic, Collection<TicketStatus> statuses);
 }

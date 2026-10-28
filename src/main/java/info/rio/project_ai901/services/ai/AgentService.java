@@ -30,6 +30,8 @@ public class AgentService {
     private final AgentReference inventoryAgent;
     private final AgentReference assistantAgent;
 
+    public record AgentReply(String text, String conversationId) {}
+
     public AgentService(ResponsesClient responses,
                         ToolRegistry registry,
                         @Qualifier("agente-inventario") AgentReference inventoryAgent,
@@ -41,17 +43,18 @@ public class AgentService {
     }
 
     // Usuarios autenticados: el contexto sale del JWT
-    public String responseInventory(String texto, UserContext ctx) {
-        return run(inventoryAgent, texto, ctx, MAX_STEPS_INTERNAL);
+    public AgentReply responseInventory(String texto, UserContext ctx, String conversationId) {
+        return run(inventoryAgent, texto, ctx, MAX_STEPS_INTERNAL, conversationId);
     }
-
-    // Clientes sin login: contexto anónimo, menos pasos
-    public String responseAssistant(String texto) {
-        return run(assistantAgent, texto, UserContext.anonymous(), MAX_STEPS_PUBLIC);
+    public AgentReply responseAssistant(String texto, String conversationId) {
+        return run(assistantAgent, texto, UserContext.anonymous(), MAX_STEPS_PUBLIC, conversationId);
     }
-
-    private String run(AgentReference agent, String texto, UserContext ctx, int maxSteps) {
+    private AgentReply run(AgentReference agent, String texto, UserContext ctx, int maxSteps, String conversationId) {
         ResponseCreateParams.Builder params = ResponseCreateParams.builder().input(texto);
+
+        if (conversationId != null && !conversationId.isBlank()) {
+            params.previousResponseId(conversationId);   // continua la conversacion anterior
+        }
 
         for (int i = 0; i < maxSteps; i++) {
             Response r = responses.createAzureResponse(
@@ -72,7 +75,8 @@ public class AgentService {
             }
 
             if (outputs.isEmpty()) {
-                return extraerTexto(r);          // respuesta final en texto
+                // respuesta final: este id es el que el frontend reenviara en el siguiente mensaje
+                return new AgentReply(extraerTexto(r), r.id());
             }
 
             // siguiente vuelta: devolvemos los resultados encadenados a la respuesta anterior
@@ -80,7 +84,9 @@ public class AgentService {
                     .previousResponseId(r.id())
                     .inputOfResponse(outputs);
         }
-        return "No pude completar la consulta. Intenta reformular la pregunta.";
+
+        // Se agotaron los pasos: se devuelve el id ORIGINAL (o null), no el de la ultima vuelta
+        return new AgentReply("No pude completar la consulta. Intenta reformular la pregunta.", conversationId);
     }
 
     private String extraerTexto(Response r) {
