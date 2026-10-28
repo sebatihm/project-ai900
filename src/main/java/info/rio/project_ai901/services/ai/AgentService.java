@@ -89,7 +89,7 @@ public class AgentService {
         return new AgentReply("No pude completar la consulta. Intenta reformular la pregunta.", conversationId);
     }
 
-    private String extraerTexto(Response r) {
+    public static String extraerTexto(Response r) {
         return r.output().stream()
                 .filter(ResponseOutputItem::isMessage)
                 .flatMap(i -> i.asMessage().content().stream())
