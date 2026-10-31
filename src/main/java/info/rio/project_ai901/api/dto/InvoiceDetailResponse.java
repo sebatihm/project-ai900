@@ -13,6 +13,6 @@ public record InvoiceDetailResponse(UUID invoiceId, InvoiceStatus status, int su
         List<SuspicionReason> reasons, UUID supplierId, String supplierName, String invoiceNumber, LocalDate invoiceDate,
         LocalDate dueDate, BigDecimal subtotal, BigDecimal tax, BigDecimal total, String currency,
         BigDecimal minConfidence, String originalFileName, String sha256, String container, String blobPath,
-        String readUrl, List<InvoiceItemResponse> items, List<InvoiceEventResponse> events, String loadedBy,
-        String reviewedBy, LocalDateTime createdAt, LocalDateTime reviewedAt) {
+        String readUrl, List<InvoiceItemResponse> items, List<InvoiceEventResponse> events, String reviewedBy,
+        LocalDateTime createdAt, LocalDateTime reviewedAt) {
 }

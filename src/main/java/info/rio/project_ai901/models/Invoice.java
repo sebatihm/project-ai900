@@ -85,10 +85,6 @@ public class Invoice {
     private String rawAnalysis;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "loaded_by", nullable = false)
-    private User loadedBy;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by")
     private User reviewedBy;
 

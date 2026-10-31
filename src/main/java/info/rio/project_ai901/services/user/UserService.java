@@ -150,8 +150,7 @@ public class UserService {
         if (!user.isActive()) {
             throw new InvalidRequestException("El usuario ya se encuentra inactivo: " + id);
         }
-        long pending = invoiceRepository.countByLoadedBy_IdAndStatusIn(id, PENDING_INVOICE_STATUSES)
-                + invoiceRepository.countByReviewedBy_IdAndStatusIn(id, PENDING_INVOICE_STATUSES);
+        long pending = invoiceRepository.countByReviewedBy_IdAndStatusIn(id, PENDING_INVOICE_STATUSES);
         if (pending > 0) {
             throw new ResourceInUseException(
                     "No se puede desactivar el usuario porque tiene facturas pendientes de revision");

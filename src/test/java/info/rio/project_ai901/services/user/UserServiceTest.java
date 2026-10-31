@@ -180,7 +180,6 @@ class UserServiceTest {
         UUID roleId = UUID.randomUUID();
         User user = user(id, "ana@ai901.local", role(roleId, RoleName.ADMIN), true);
         when(userRepository.findById(id)).thenReturn(Optional.of(user));
-        when(invoiceRepository.countByLoadedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
         when(invoiceRepository.countByReviewedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
 
         UserDetailResponse result = service.deactivate(id);
@@ -195,7 +194,7 @@ class UserServiceTest {
         UUID roleId = UUID.randomUUID();
         User user = user(id, "ana@ai901.local", role(roleId, RoleName.ADMIN), true);
         when(userRepository.findById(id)).thenReturn(Optional.of(user));
-        when(invoiceRepository.countByLoadedBy_IdAndStatusIn(any(), anyList())).thenReturn(1L);
+        when(invoiceRepository.countByReviewedBy_IdAndStatusIn(any(), anyList())).thenReturn(1L);
 
         assertThatThrownBy(() -> service.deactivate(id)).isInstanceOf(ResourceInUseException.class);
     }
@@ -206,7 +205,6 @@ class UserServiceTest {
         UUID roleId = UUID.randomUUID();
         User user = user(id, "ana@ai901.local", role(roleId, RoleName.ADMIN), true);
         when(userRepository.findById(id)).thenReturn(Optional.of(user));
-        when(invoiceRepository.countByLoadedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
         when(invoiceRepository.countByReviewedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
         when(ticketRepository.countByAssignedTo_IdAndStatusIn(any(), anyList())).thenReturn(2L);
 
@@ -221,7 +219,6 @@ class UserServiceTest {
         UUID roleId = UUID.randomUUID();
         User user = user(id, "ana@ai901.local", role(roleId, RoleName.ADMIN), true);
         when(userRepository.findById(id)).thenReturn(Optional.of(user));
-        when(invoiceRepository.countByLoadedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
         when(invoiceRepository.countByReviewedBy_IdAndStatusIn(any(), anyList())).thenReturn(0L);
         when(ticketRepository.countByAssignedTo_IdAndStatusIn(any(), anyList())).thenReturn(0L);
 

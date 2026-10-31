@@ -28,8 +28,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     long countByStatus(InvoiceStatus status);
 
-    long countByLoadedBy_IdAndStatusIn(UUID loadedById, List<InvoiceStatus> statuses);
-
     long countByReviewedBy_IdAndStatusIn(UUID reviewedById, List<InvoiceStatus> statuses);
 
     long count();

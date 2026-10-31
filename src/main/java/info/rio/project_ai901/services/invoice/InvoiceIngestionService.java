@@ -4,18 +4,15 @@ import tools.jackson.databind.ObjectMapper;
 import info.rio.project_ai901.api.dto.InvoiceAnalysisResponse;
 import info.rio.project_ai901.api.dto.InvoiceItemResponse;
 import info.rio.project_ai901.exceptions.DuplicateInvoiceException;
-import info.rio.project_ai901.exceptions.InvalidCredentialsException;
 import info.rio.project_ai901.exceptions.InvalidRequestException;
 import info.rio.project_ai901.models.Invoice;
 import info.rio.project_ai901.models.InvoiceItem;
 import info.rio.project_ai901.models.Supplier;
-import info.rio.project_ai901.models.User;
 import info.rio.project_ai901.models.enums.InvoiceEventType;
 import info.rio.project_ai901.models.enums.InvoiceStatus;
 import info.rio.project_ai901.repositories.InvoiceItemRepository;
 import info.rio.project_ai901.repositories.InvoiceRepository;
 import info.rio.project_ai901.repositories.SupplierRepository;
-import info.rio.project_ai901.repositories.UserRepository;
 import info.rio.project_ai901.services.ai.DocumentIntelligenceService;
 import info.rio.project_ai901.services.ai.dto.InvoiceItemData;
 import info.rio.project_ai901.services.ai.dto.InvoiceOcrResult;
@@ -47,7 +44,6 @@ public class InvoiceIngestionService {
     private final InvoiceRepository invoiceRepository;
     private final InvoiceItemRepository invoiceItemRepository;
     private final InvoiceEventRecorder eventRecorder;
-    private final UserRepository userRepository;
     private final SupplierRepository supplierRepository;
     private final InvoiceMapper mapper;
     private final ObjectMapper objectMapper;
@@ -60,7 +56,7 @@ public class InvoiceIngestionService {
             StorageService storageService, DocumentIntelligenceService documentIntelligenceService,
             InvoiceScoringService scoringService, InvoiceRepository invoiceRepository,
             InvoiceItemRepository invoiceItemRepository, InvoiceEventRecorder eventRecorder,
-            UserRepository userRepository, SupplierRepository supplierRepository, InvoiceMapper mapper,
+            SupplierRepository supplierRepository, InvoiceMapper mapper,
             ObjectMapper objectMapper,
             @Value("${app.storage.container.in:facturas-entrada}") String containerIn,
             @Value("${app.storage.container.valid:facturas-validas}") String containerValid,
@@ -74,7 +70,6 @@ public class InvoiceIngestionService {
         this.invoiceRepository = invoiceRepository;
         this.invoiceItemRepository = invoiceItemRepository;
         this.eventRecorder = eventRecorder;
-        this.userRepository = userRepository;
         this.supplierRepository = supplierRepository;
         this.mapper = mapper;
         this.objectMapper = objectMapper;
@@ -85,10 +80,7 @@ public class InvoiceIngestionService {
     }
 
     @Transactional
-    public InvoiceAnalysisResponse analyze(String originalFilename, byte[] content, String uploadedByEmail,
-            UUID supplierId) {
-        User user = userRepository.findByEmailIgnoreCase(uploadedByEmail)
-                .orElseThrow(() -> new InvalidCredentialsException("Usuario no encontrado: " + uploadedByEmail));
+    public InvoiceAnalysisResponse analyze(String originalFilename, byte[] content, UUID supplierId) {
         Supplier supplier = supplierId == null ? null
                 : supplierRepository.findById(supplierId)
                         .orElseThrow(() -> new InvalidRequestException("Proveedor no encontrado: " + supplierId));
@@ -104,7 +96,7 @@ public class InvoiceIngestionService {
         byte[] pdf = normalizer.toPdf(file.content(), file.signature());
         String folder = LocalDate.now().toString();
         String filename = UUID.randomUUID() + ".pdf";
-        Map<String, String> metadata = metadata(supplier, sha256, uploadedByEmail);
+        Map<String, String> metadata = metadata(supplier, sha256);
         String inboxPath = storageService.upload(containerIn, folder, filename, new ByteArrayInputStream(pdf),
                 pdf.length, PDF_CONTENT_TYPE, metadata);
 
@@ -132,7 +124,6 @@ public class InvoiceIngestionService {
         invoice.setSuspicionScore(scoring.score());
         invoice.setReasons(writeReasons(scoring.reasons()));
         invoice.setRawAnalysis(ocr.getRawJson());
-        invoice.setLoadedBy(user);
         invoice.setCreatedAt(LocalDateTime.now());
         invoiceRepository.save(invoice);
 
@@ -147,9 +138,9 @@ public class InvoiceIngestionService {
             itemResponses.add(new InvoiceItemResponse(data.description(), data.quantity(), data.amount()));
         }
 
-        eventRecorder.record(invoice, user, InvoiceEventType.UPLOADED,
+        eventRecorder.record(invoice, null, InvoiceEventType.UPLOADED,
                 "sha256=" + sha256 + ", nombre original=" + file.originalFileName());
-        eventRecorder.record(invoice, user, InvoiceEventType.ANALYZED, analyzeDetail(ocr, status, scoring.score()));
+        eventRecorder.record(invoice, null, InvoiceEventType.ANALYZED, analyzeDetail(ocr, status, scoring.score()));
 
         moveToFinalContainer(invoice, pdf, folder, filename, metadata, inboxPath);
 
@@ -198,18 +189,17 @@ public class InvoiceIngestionService {
         invoice.setContainer(target);
         invoice.setBlobPath(movedPath);
         if (invoice.getStatus() == InvoiceStatus.SUSPICIOUS) {
-            eventRecorder.record(invoice, invoice.getLoadedBy(), InvoiceEventType.QUARANTINED,
+            eventRecorder.record(invoice, null, InvoiceEventType.QUARANTINED,
                     "Enviada a cuarentena por puntaje de sospecha " + invoice.getSuspicionScore());
         } else if (invoice.getStatus() == InvoiceStatus.REJECTED) {
-            eventRecorder.record(invoice, invoice.getLoadedBy(), InvoiceEventType.REJECTED,
+            eventRecorder.record(invoice, null, InvoiceEventType.REJECTED,
                     "Rechazada automaticamente (no identificada como factura)");
         }
     }
 
-    private Map<String, String> metadata(Supplier supplier, String sha256, String uploadedByEmail) {
+    private Map<String, String> metadata(Supplier supplier, String sha256) {
         Map<String, String> metadata = new HashMap<>();
         metadata.put("sha256", sha256);
-        metadata.put("uploaded_by", uploadedByEmail);
         if (supplier != null && supplier.getId() != null) {
             metadata.put("supplier_id", supplier.getId().toString());
         }
