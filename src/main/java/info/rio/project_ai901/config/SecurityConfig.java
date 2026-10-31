@@ -58,16 +58,17 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/chat/public").permitAll()
                         .requestMatchers("/auth/me").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/invoice-analyzer/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/invoice-analyzer/**")
+                        .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT")
                         .requestMatchers(HttpMethod.POST, "/invoice/*/review")
                         .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT")
                         .requestMatchers(HttpMethod.PUT, "/ticket/*/assign")
                         .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT", "BRANCH_MANAGER")
                         .requestMatchers("/user/**", "/role/**").hasAnyRole("ADMIN", "BOSS")
-                        .requestMatchers("/chat/public").permitAll()
                         .requestMatchers("/chat").authenticated()
-                        .anyRequest().permitAll())
+                        .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling.authenticationEntryPoint(
                         new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
