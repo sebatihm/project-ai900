@@ -1,6 +1,7 @@
 package info.rio.project_ai901.aiTools;
 
 import info.rio.project_ai901.exceptions.ResourceNotFoundException;
+import info.rio.project_ai901.models.enums.TicketChannel;
 import info.rio.project_ai901.models.enums.TicketSentiment;
 import info.rio.project_ai901.models.enums.TicketTopic;
 import info.rio.project_ai901.services.ticket.TicketService;
@@ -109,10 +110,11 @@ public class CreateTicket implements AgentTool {
 
         boolean revision = args.path("requiere_revision_humana").asBoolean(false);
         String source = ctx.isAuthenticated() ? "chat-interno:" + ctx.userId() : "chat-publico";
+        TicketChannel channel = ctx.channel() == InputChannel.VOICE ? TicketChannel.VOICE : TicketChannel.PORTAL;
 
         try {
             TicketService.AgentTicketResult r = ticketService.createFromAgent(
-                    codigo, cut(asunto, 200), tema, sentimiento, cut(resumen, 1800), revision, source);
+                    codigo, cut(asunto, 200), tema, sentimiento, cut(resumen, 1800), revision, channel, source);
 
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("ticket_creado", r.created());

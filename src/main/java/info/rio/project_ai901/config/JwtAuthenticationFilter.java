@@ -1,5 +1,6 @@
 package info.rio.project_ai901.config;
 
+import info.rio.project_ai901.aiTools.InputChannel;
 import info.rio.project_ai901.aiTools.UserContext;
 import info.rio.project_ai901.services.auth.JwtService;
 import io.jsonwebtoken.Claims;
@@ -62,8 +63,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UUID.fromString(claims.get("userId", String.class)),
                 claims.get("name", String.class),
                 claims.get("role", String.class),
-                wh == null ? null : UUID.fromString(wh));
-            
+                wh == null ? null : UUID.fromString(wh),
+                InputChannel.TEXT);   
+
             request.setAttribute("userContext", ctx);
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(email, null,
                     List.of(new SimpleGrantedAuthority("ROLE_" + role)));

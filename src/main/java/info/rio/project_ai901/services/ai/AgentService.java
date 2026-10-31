@@ -46,8 +46,8 @@ public class AgentService {
     public AgentReply responseInventory(String texto, UserContext ctx, String conversationId) {
         return run(inventoryAgent, texto, ctx, MAX_STEPS_INTERNAL, conversationId);
     }
-    public AgentReply responseAssistant(String texto, String conversationId) {
-        return run(assistantAgent, texto, UserContext.anonymous(), MAX_STEPS_PUBLIC, conversationId);
+    public AgentReply responseAssistant(String texto,  UserContext ctx, String conversationId) {
+        return run(assistantAgent, texto, ctx, MAX_STEPS_PUBLIC, conversationId);
     }
     private AgentReply run(AgentReference agent, String texto, UserContext ctx, int maxSteps, String conversationId) {
         ResponseCreateParams.Builder params = ResponseCreateParams.builder().input(texto);

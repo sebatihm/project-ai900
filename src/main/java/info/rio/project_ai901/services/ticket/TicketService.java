@@ -181,7 +181,7 @@ public class TicketService {
 
     @Transactional
     public AgentTicketResult createFromAgent(String orderCode, String subject, TicketTopic topic,
-            TicketSentiment sentiment, String summary, boolean requiresHumanReview, String source) {
+            TicketSentiment sentiment, String summary, boolean requiresHumanReview,TicketChannel channel, String source) {
 
         Order order = orderRepository.findByCodeIgnoreCase(orderCode.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("No se encontro un pedido con ese codigo"));
@@ -213,7 +213,7 @@ public class TicketService {
                 order.getCustomer().getId(),   // el cliente sale del pedido
                 order.getId(),
                 subject,
-                TicketChannel.PORTAL,          // lo fija el codigo, no el modelo
+                channel,                       // lo fija el codigo, no el modelo
                 topic,
                 sentiment,
                 HandledBy.AGENT,
