@@ -27,6 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import info.rio.project_ai901.repositories.WarehouseRepository;
 
 /**
  * Base para pruebas end-to-end. Levanta el contexto completo contra H2 (profile
@@ -52,7 +53,12 @@ public abstract class AbstractIntegrationTest {
     protected RoleRepository roleRepository;
 
     @Autowired
+    protected WarehouseRepository warehouseRepository;
+
+    @Autowired
     protected PasswordEncoder passwordEncoder;
+
+    private UUID defaultWarehouseId;
 
     protected String getJson(String path) throws Exception {
         return mockMvc.perform(get(path))
@@ -86,6 +92,19 @@ public abstract class AbstractIntegrationTest {
         String response = postJson("/warehouse",
                 "{\"code\":\"" + code + "\",\"name\":\"Almacen " + code + "\",\"branchId\":\"" + branchId + "\"}");
         return UUID.fromString(dataField(response, "warehouseId"));
+    }
+
+    protected UUID defaultWarehouseId() {
+        if (defaultWarehouseId == null) {
+            try {
+                String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+                UUID branchId = createBranch("B" + suffix);
+                defaultWarehouseId = createWarehouse("W" + suffix, branchId);
+            } catch (Exception e) {
+                throw new IllegalStateException("No se pudo crear el almacen por defecto de pruebas", e);
+            }
+        }
+        return defaultWarehouseId;
     }
 
     protected UUID createCategory(String name) throws Exception {
@@ -163,6 +182,10 @@ public abstract class AbstractIntegrationTest {
     }
 
     protected UUID createUser(String name, String email, String rawPassword, RoleName roleName) {
+        return createUser(name, email, rawPassword, roleName, defaultWarehouseId());
+    }
+
+    protected UUID createUser(String name, String email, String rawPassword, RoleName roleName, UUID warehouseId) {
         createRole(roleName);
         Role role = roleRepository.findByName(roleName)
                 .orElseThrow(() -> new IllegalStateException("Rol no encontrado: " + roleName));
@@ -171,6 +194,8 @@ public abstract class AbstractIntegrationTest {
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(rawPassword));
         user.setRole(role);
+        user.setWarehouse(warehouseRepository.findById(warehouseId)
+                .orElseThrow(() -> new IllegalStateException("Almacen no encontrado: " + warehouseId)));
         user.setActive(true);
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
