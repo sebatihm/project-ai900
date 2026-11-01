@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -30,7 +31,6 @@ public class Invoice {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(columnDefinition = "char(36)")
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -78,10 +78,12 @@ public class Invoice {
     @Column(nullable = false)
     private int suspicionScore;
 
-    @Column(columnDefinition = "text")
+    @Lob
+    @Column(name = "reasons")
     private String reasons;
 
-    @Column(columnDefinition = "mediumtext")
+    @Lob
+    @Column(name = "raw_analysis")
     private String rawAnalysis;
 
     @ManyToOne(fetch = FetchType.LAZY)

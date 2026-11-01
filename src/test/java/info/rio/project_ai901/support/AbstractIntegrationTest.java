@@ -13,6 +13,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ import info.rio.project_ai901.repositories.WarehouseRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@WithMockUser(username = "e2e@ai901.local", roles = "ADMIN")
 @Transactional
 public abstract class AbstractIntegrationTest {
 

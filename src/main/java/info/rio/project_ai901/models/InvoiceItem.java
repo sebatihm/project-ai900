@@ -25,7 +25,6 @@ public class InvoiceItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(columnDefinition = "char(36)")
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -14,6 +14,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -403,6 +404,7 @@ class TicketE2ETest extends AbstractIntegrationTest {
                 RoleName.ADMIN_SUPPORT);
 
         mockMvc.perform(put("/ticket/{id}/assign", ticketId)
+                        .with(anonymous())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"assignedToId\":\"" + supportId + "\"}"))
                 .andExpect(status().isUnauthorized());

@@ -21,7 +21,6 @@ public class Branch {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(columnDefinition = "char(36)")
     private UUID id;
 
     @Column(nullable = false, unique = true, length = 20)
@@ -33,6 +32,6 @@ public class Branch {
     @Column(nullable = false)
     private String city;
 
-    @Column(nullable = false, columnDefinition = "bit(1)")
+    @Column(nullable = false)
     private boolean active = true;
 }

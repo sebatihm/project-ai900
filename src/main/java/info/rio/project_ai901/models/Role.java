@@ -24,7 +24,6 @@ public class Role {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(columnDefinition = "char(36)")
     private UUID id;
 
     @Enumerated(EnumType.STRING)

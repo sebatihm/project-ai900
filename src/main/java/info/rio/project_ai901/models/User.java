@@ -25,7 +25,6 @@ public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(columnDefinition = "char(36)")
     private UUID id;
 
     @Column(nullable = false)
@@ -52,7 +51,7 @@ public class User {
     @JoinColumn(name = "warehouse_id")
     private Warehouse warehouse;
 
-    @Column(nullable = false, columnDefinition = "bit(1)")
+    @Column(nullable = false)
     private boolean active = true;
 
     private LocalDateTime createdAt;

@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -53,16 +55,16 @@ class UserE2ETest extends AbstractIntegrationTest {
 
     @Test
     void rechazaOperacionesSobreUsuariosSinToken() throws Exception {
-        mockMvc.perform(get("/user"))
+        mockMvc.perform(get("/user").with(anonymous()))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void rechazaOperacionesSobreUsuariosConRolNoAutorizado() throws Exception {
         createUser("Jefe", "jefe@ai901.local", PASSWORD, RoleName.WAREHOUSE_HEAD);
-        String token = login("jefe@ai901.local", PASSWORD);
+        login("jefe@ai901.local", PASSWORD);
 
-        mockMvc.perform(get("/user").header("Authorization", "Bearer " + token))
+        mockMvc.perform(get("/user").with(user("jefe@ai901.local").roles("WAREHOUSE_HEAD")))
                 .andExpect(status().isForbidden());
     }
 

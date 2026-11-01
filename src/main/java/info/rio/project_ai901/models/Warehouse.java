@@ -24,7 +24,6 @@ public class Warehouse {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(columnDefinition = "char(36)")
     private UUID id;
 
     @Column(nullable = false, unique = true, length = 20)
@@ -33,7 +32,7 @@ public class Warehouse {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false, columnDefinition = "bit(1)")
+    @Column(nullable = false)
     private boolean active = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
