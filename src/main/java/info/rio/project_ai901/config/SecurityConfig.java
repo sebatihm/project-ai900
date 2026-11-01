@@ -52,9 +52,12 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)
-            throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter,
+            @Value("${app.public-upload.key:}") String publicUploadKey) throws Exception {
+        PublicUploadKeyFilter publicUploadKeyFilter = new PublicUploadKeyFilter(publicUploadKey);
         http.csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login").permitAll()
@@ -62,16 +65,20 @@ public class SecurityConfig {
                         .requestMatchers("/auth/me").authenticated()
                         .requestMatchers(HttpMethod.POST, "/invoice-analyzer/**")
                         .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT")
+                        .requestMatchers(HttpMethod.POST, "/public/invoice-analyzer/**")
+                        .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT", "PUBLIC_UPLOAD")
                         .requestMatchers(HttpMethod.POST, "/invoice/*/review")
                         .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT")
                         .requestMatchers(HttpMethod.PUT, "/ticket/*/assign")
                         .hasAnyRole("ADMIN", "BOSS", "ADMIN_SUPPORT", "BRANCH_MANAGER")
+                        .requestMatchers("/supplier/**").authenticated()
                         .requestMatchers("/user/**", "/role/**").hasAnyRole("ADMIN", "BOSS")
                         .requestMatchers("/chat").authenticated()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling.authenticationEntryPoint(
                         new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(publicUploadKeyFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 }

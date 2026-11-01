@@ -9,4 +9,8 @@ import java.util.UUID;
 public interface SupplierRepository extends JpaRepository<Supplier, UUID> {
 
     Optional<Supplier> findFirstByNameIgnoreCase(String name);
+
+    boolean existsByRfcIgnoreCase(String rfc);
+
+    boolean existsByRfcIgnoreCaseAndIdNot(String rfc, UUID id);
 }
