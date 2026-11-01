@@ -9,12 +9,14 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import org.springframework.validation.annotation.Validated;
 
@@ -29,8 +31,9 @@ public class InvoiceAnalyzerController {
         this.invoiceIngestionService = invoiceIngestionService;
     }
 
-    @PostMapping
+    @PostMapping("/{supplierId}")
     public ResponseEntity<ApiResponse<InvoiceAnalysisResponse>> analyze(
+            @PathVariable ("supplierId") UUID supplierId,
             @ModelAttribute @Valid InvoiceAnalyzerRequest request) {
         MultipartFile file = request.getFile();
         if (file == null || file.isEmpty()) {
@@ -42,11 +45,10 @@ public class InvoiceAnalyzerController {
         } catch (IOException e) {
             throw new InvalidRequestException("No se pudo leer el archivo subido");
         }
-        String uploadedBy = request.getUploadedBy() == null ? "" : request.getUploadedBy().trim();
         InvoiceAnalysisResponse response = invoiceIngestionService.analyze(file.getOriginalFilename(), content,
-                uploadedBy, request.getSupplierId());
+                supplierId);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(info.rio.project_ai901.api.dto.ApiResponse.created(response,
+                .body(ApiResponse.created(response,
                         "Análisis de factura realizado correctamente"));
     }
 }

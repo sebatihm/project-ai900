@@ -36,9 +36,14 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<ApiResponse<PaginatedResponse<ProductSummaryResponse>>> list(
             @RequestParam(value = "offset", defaultValue = "0") long offset,
-            @RequestParam(value = "limit", defaultValue = "20") int limit) {
-        PaginatedResponse<ProductSummaryResponse> result = productService.list(offset, limit);
-        return ResponseEntity.ok(ApiResponse.ok(result, "Listado de productos obtenido correctamente"));
+            @RequestParam(value = "limit", defaultValue = "20") int limit,
+            @RequestParam(value = "search", required = false) String search) {
+
+        PaginatedResponse<ProductSummaryResponse> result =
+                productService.list(offset, limit, search);
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(result, "Listado de productos obtenido correctamente"));
     }
 
     @GetMapping("/{id}")

@@ -14,6 +14,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -38,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(ProductController.class)
 @AutoConfigureMockMvc
 @Import(SecurityConfig.class)
+@WithMockUser(roles = "ADMIN")
 class ProductControllerTest {
 
     @Autowired
@@ -46,29 +48,29 @@ class ProductControllerTest {
     @MockitoBean
     private ProductService productService;
 
-    @Test
-    void listsProducts() throws Exception {
-        UUID id = UUID.randomUUID();
-        UUID categoryId = UUID.randomUUID();
-        when(productService.list(0L, 20)).thenReturn(new PaginatedResponse<>(List.of(
-                new ProductSummaryResponse(id, "SKU-001", "Coca Cola", "ml", new BigDecimal("12.50"),
-                        categoryId, "Bebidas")), 1L, 0L, 20));
+        @Test
+        void listsProducts() throws Exception {
+                UUID id = UUID.randomUUID();
+                UUID categoryId = UUID.randomUUID();
+                when(productService.list(0L, 20, null)).thenReturn(new PaginatedResponse<>(List.of(
+                        new ProductSummaryResponse(id, "SKU-001", "Coca Cola", "ml", new BigDecimal("12.50"),
+                                categoryId, "Bebidas")), 1L, 0L, 20));
 
-        mockMvc.perform(get("/product"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].sku").value("SKU-001"))
-                .andExpect(jsonPath("$.data.items[0].categoryName").value("Bebidas"));
-    }
+                mockMvc.perform(get("/product"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.items[0].sku").value("SKU-001"))
+                        .andExpect(jsonPath("$.data.items[0].categoryName").value("Bebidas"));
+        }
 
-    @Test
-    void passesPaginationToService() throws Exception {
-        when(productService.list(anyLong(), anyInt())).thenReturn(new PaginatedResponse<>(List.of(), 0L, 20L, 10));
+        @Test
+        void passesPaginationToService() throws Exception {
+                when(productService.list(anyLong(), anyInt(), any())).thenReturn(new PaginatedResponse<>(List.of(), 0L, 20L, 10));
 
-        mockMvc.perform(get("/product?offset=20&limit=10"))
-                .andExpect(status().isOk());
+                mockMvc.perform(get("/product?offset=20&limit=10"))
+                        .andExpect(status().isOk());
 
-        verify(productService).list(20L, 10);
-    }
+                verify(productService).list(20L, 10, null);
+        }
 
     @Test
     void returnsProductDetail() throws Exception {

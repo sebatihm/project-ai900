@@ -26,6 +26,8 @@ public class TicketMapper {
                 customerId(ticket),
                 customerName(ticket),
                 orderId(ticket),
+                assignedToId(ticket),
+                assignedToName(ticket),
                 ticket.getCreatedAt());
     }
 
@@ -43,6 +45,8 @@ public class TicketMapper {
                 customerId(ticket),
                 customerName(ticket),
                 orderId(ticket),
+                assignedToId(ticket),
+                assignedToName(ticket),
                 ticket.getCreatedAt(),
                 (int) messageCount);
     }
@@ -70,5 +74,13 @@ public class TicketMapper {
 
     private UUID orderId(Ticket ticket) {
         return ticket.getOrder() != null ? ticket.getOrder().getId() : null;
+    }
+
+    private UUID assignedToId(Ticket ticket) {
+        return ticket.getAssignedTo() != null ? ticket.getAssignedTo().getId() : null;
+    }
+
+    private String assignedToName(Ticket ticket) {
+        return ticket.getAssignedTo() != null ? ticket.getAssignedTo().getName() : null;
     }
 }

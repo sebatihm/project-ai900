@@ -102,6 +102,11 @@ public class WarehouseService {
         return mapper.toDetail(warehouse);
     }
 
+    @Transactional(readOnly = true)
+    public UUID branchIdOf(UUID warehouseId) {
+        return find(warehouseId).getBranch().getId();
+    }
+
     private Page<Warehouse> fetch(boolean includeInactive, UUID branchId, PageRequest pageable) {
         if (includeInactive) {
             return branchId == null ? warehouseRepository.findAll(pageable)

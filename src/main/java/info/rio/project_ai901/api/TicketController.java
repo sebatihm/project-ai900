@@ -1,6 +1,7 @@
 package info.rio.project_ai901.api;
 
 import info.rio.project_ai901.api.dto.ApiResponse;
+import info.rio.project_ai901.api.dto.AssignTicketRequest;
 import info.rio.project_ai901.api.dto.CreateTicketMessageRequest;
 import info.rio.project_ai901.api.dto.CreateTicketRequest;
 import info.rio.project_ai901.api.dto.PaginatedResponse;
@@ -47,10 +48,11 @@ public class TicketController {
             @RequestParam(value = "status", required = false) TicketStatus status,
             @RequestParam(value = "topic", required = false) TicketTopic topic,
             @RequestParam(value = "handledBy", required = false) HandledBy handledBy,
+            @RequestParam(value = "assignedToId", required = false) UUID assignedToId,
             @RequestParam(value = "offset", defaultValue = "0") long offset,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
         PaginatedResponse<TicketSummaryResponse> result = ticketService.list(customerId, status, topic, handledBy,
-                offset, limit);
+                assignedToId, offset, limit);
         return ResponseEntity.ok(ApiResponse.ok(result, "Listado de tickets obtenido correctamente"));
     }
 
@@ -71,6 +73,13 @@ public class TicketController {
             @Valid @RequestBody UpdateTicketRequest request) {
         TicketDetailResponse result = ticketService.update(id, request);
         return ResponseEntity.ok(ApiResponse.ok(result, "Ticket actualizado correctamente"));
+    }
+
+    @PutMapping("/{id}/assign")
+    public ResponseEntity<ApiResponse<TicketDetailResponse>> assign(@PathVariable("id") UUID id,
+            @Valid @RequestBody AssignTicketRequest request) {
+        TicketDetailResponse result = ticketService.assign(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Ticket asignado correctamente"));
     }
 
     @PutMapping("/{id}/status")

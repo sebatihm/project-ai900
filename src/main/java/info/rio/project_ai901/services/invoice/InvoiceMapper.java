@@ -63,8 +63,7 @@ public class InvoiceMapper {
                 invoice.getDueDate(), invoice.getSubtotal(), invoice.getTax(), invoice.getTotal(),
                 invoice.getCurrency(), invoice.getMinConfidence(), invoice.getOriginalFileName(),
                 invoice.getFileHash(), invoice.getContainer(), invoice.getBlobPath(), readUrl(invoice), items, events,
-                userEmail(invoice.getLoadedBy()), userEmail(invoice.getReviewedBy()), invoice.getCreatedAt(),
-                invoice.getReviewedAt());
+                userEmail(invoice.getReviewedBy()), invoice.getCreatedAt(), invoice.getReviewedAt());
     }
 
     public List<InvoiceItemResponse> toItems(List<InvoiceItem> items) {

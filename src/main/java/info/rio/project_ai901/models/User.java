@@ -13,6 +13,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -24,7 +25,6 @@ public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(columnDefinition = "char(36)")
     private UUID id;
 
     @Column(nullable = false)
@@ -32,6 +32,12 @@ public class User {
 
     @Column(nullable = false, unique = true)
     private String email;
+
+    /**
+     * Hash BCrypt de la contrasena. Nunca se expone en las respuestas de la API.
+     */
+    @Column(length = 100)
+    private String password;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", nullable = false)
@@ -44,4 +50,11 @@ public class User {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "warehouse_id")
     private Warehouse warehouse;
+
+    @Column(nullable = false)
+    private boolean active = true;
+
+    private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
 }

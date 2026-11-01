@@ -5,12 +5,14 @@ import info.rio.project_ai901.api.dto.InvoiceDetailResponse;
 import info.rio.project_ai901.api.dto.InvoiceSummaryResponse;
 import info.rio.project_ai901.api.dto.PaginatedResponse;
 import info.rio.project_ai901.api.dto.ReviewRequest;
+import info.rio.project_ai901.exceptions.InvalidCredentialsException;
 import info.rio.project_ai901.models.enums.InvoiceStatus;
 import info.rio.project_ai901.services.invoice.InvoiceQueryService;
 import info.rio.project_ai901.services.invoice.InvoiceReviewService;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,8 +55,11 @@ public class InvoiceController {
 
     @PostMapping("/{id}/review")
     public ResponseEntity<ApiResponse<InvoiceDetailResponse>> review(@PathVariable("id") UUID id,
-            @Valid @RequestBody ReviewRequest request) {
-        InvoiceDetailResponse result = invoiceReviewService.review(id, request);
+            @Valid @RequestBody ReviewRequest request, Authentication authentication) {
+        if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
+            throw new InvalidCredentialsException("Autenticacion requerida");
+        }
+        InvoiceDetailResponse result = invoiceReviewService.review(id, request, authentication.getName());
         return ResponseEntity.ok(ApiResponse.ok(result, "Revisión de factura registrada correctamente"));
     }
 

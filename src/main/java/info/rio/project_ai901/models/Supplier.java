@@ -21,7 +21,6 @@ public class Supplier {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(columnDefinition = "char(36)")
     private UUID id;
 
     @Column(nullable = false)

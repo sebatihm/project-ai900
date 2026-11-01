@@ -21,6 +21,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithAnonymousUser;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -44,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(TicketController.class)
 @AutoConfigureMockMvc
 @Import(SecurityConfig.class)
+@WithMockUser(roles = "ADMIN")
 class TicketControllerTest {
 
     @Autowired
@@ -56,11 +59,11 @@ class TicketControllerTest {
     void listaTicketsConFiltroDeEstadoYHandledBy() throws Exception {
         UUID id = UUID.randomUUID();
         UUID customerId = UUID.randomUUID();
-        when(ticketService.list(eq(customerId), eq(TicketStatus.OPEN), eq(null), eq(HandledBy.AGENT), eq(0L),
-                eq(20)))
+        when(ticketService.list(eq(customerId), eq(TicketStatus.OPEN), eq(null), eq(HandledBy.AGENT), eq(null),
+                eq(0L), eq(20)))
                 .thenReturn(new PaginatedResponse<>(List.of(new TicketSummaryResponse(id, "Paquete retrasado",
                         TicketStatus.OPEN, TicketChannel.EMAIL, TicketTopic.DELAY, TicketSentiment.NEGATIVE,
-                        HandledBy.AGENT, false, customerId, "Hotel Miramar", null,
+                        HandledBy.AGENT, false, customerId, "Hotel Miramar", null, null, null,
                         LocalDateTime.of(2026, 1, 1, 10, 0))), 1L, 0L, 20));
 
         mockMvc.perform(get("/ticket?customerId=" + customerId + "&status=OPEN&handledBy=AGENT"))
@@ -69,7 +72,19 @@ class TicketControllerTest {
                 .andExpect(jsonPath("$.data.items[0].status").value("OPEN"))
                 .andExpect(jsonPath("$.data.items[0].handledBy").value("AGENT"));
 
-        verify(ticketService).list(customerId, TicketStatus.OPEN, null, HandledBy.AGENT, 0L, 20);
+        verify(ticketService).list(customerId, TicketStatus.OPEN, null, HandledBy.AGENT, null, 0L, 20);
+    }
+
+    @Test
+    void listaTicketsFiltrandoPorUsuarioAsignado() throws Exception {
+        UUID assignedToId = UUID.randomUUID();
+        when(ticketService.list(eq(null), eq(null), eq(null), eq(null), eq(assignedToId), eq(0L), eq(20)))
+                .thenReturn(new PaginatedResponse<>(List.of(), 0L, 0L, 20));
+
+        mockMvc.perform(get("/ticket?assignedToId=" + assignedToId))
+                .andExpect(status().isOk());
+
+        verify(ticketService).list(null, null, null, null, assignedToId, 0L, 20);
     }
 
     @Test
@@ -151,7 +166,7 @@ class TicketControllerTest {
         when(ticketService.update(eq(id), any()))
                 .thenReturn(new TicketDetailResponse(id, "Asunto actualizado", TicketStatus.OPEN,
                         TicketChannel.PORTAL, TicketTopic.BILLING, TicketSentiment.POSITIVE, HandledBy.HUMAN,
-                        true, null, UUID.randomUUID(), "Hotel Miramar", null,
+                        true, null, UUID.randomUUID(), "Hotel Miramar", null, null, null,
                         LocalDateTime.of(2026, 1, 1, 10, 0), 0));
 
         mockMvc.perform(put("/ticket/{id}", id)
@@ -288,9 +303,97 @@ class TicketControllerTest {
         verify(ticketService, never()).addMessage(any(), any());
     }
 
+    @Test
+    @WithMockUser(roles = "ADMIN_SUPPORT")
+    void asignaElTicketAUnUsuarioDeSoporte() throws Exception {
+        UUID id = UUID.randomUUID();
+        UUID assignedToId = UUID.randomUUID();
+        when(ticketService.assign(eq(id), any())).thenReturn(assignedDetail(id, assignedToId));
+
+        mockMvc.perform(put("/ticket/{id}/assign", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + assignedToId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.assignedToId").value(assignedToId.toString()))
+                .andExpect(jsonPath("$.data.assignedToName").value("Soporte Uno"))
+                .andExpect(jsonPath("$.data.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.data.handledBy").value("HUMAN"));
+
+        verify(ticketService).assign(eq(id), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN_SUPPORT")
+    void desasignaElTicketConAssignedToIdNulo() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(ticketService.assign(eq(id), any())).thenReturn(detail(id, TicketStatus.OPEN, null, 0));
+
+        mockMvc.perform(put("/ticket/{id}/assign", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.assignedToId").doesNotExist());
+    }
+
+    @Test
+    @WithAnonymousUser
+    void devuelve401AlAsignarSinToken() throws Exception {
+        mockMvc.perform(put("/ticket/{id}/assign", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isUnauthorized());
+
+        verify(ticketService, never()).assign(any(), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "WAREHOUSE_HEAD")
+    void devuelve403AlAsignarConRolSinPermiso() throws Exception {
+        mockMvc.perform(put("/ticket/{id}/assign", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isForbidden());
+
+        verify(ticketService, never()).assign(any(), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN_SUPPORT")
+    void devuelve404AlAsignarAUsuarioInexistente() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(ticketService.assign(eq(id), any()))
+                .thenThrow(new ResourceNotFoundException("Usuario no encontrado: " + UUID.randomUUID()));
+
+        mockMvc.perform(put("/ticket/{id}/assign", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Recurso no encontrado"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN_SUPPORT")
+    void devuelve400AlAsignarAUsuarioInactivo() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(ticketService.assign(eq(id), any()))
+                .thenThrow(new InvalidRequestException("El usuario no esta activo: " + UUID.randomUUID()));
+
+        mockMvc.perform(put("/ticket/{id}/assign", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"assignedToId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Solicitud invalida"));
+    }
+
     private TicketDetailResponse detail(UUID id, TicketStatus status, Integer rating, int messageCount) {
         return new TicketDetailResponse(id, "Paquete retrasado", status, TicketChannel.EMAIL, TicketTopic.DELAY,
                 TicketSentiment.NEGATIVE, HandledBy.HUMAN, false, rating, UUID.randomUUID(), "Hotel Miramar",
-                null, LocalDateTime.of(2026, 1, 1, 10, 0), messageCount);
+                null, null, null, LocalDateTime.of(2026, 1, 1, 10, 0), messageCount);
+    }
+
+    private TicketDetailResponse assignedDetail(UUID id, UUID assignedToId) {
+        return new TicketDetailResponse(id, "Paquete retrasado", TicketStatus.IN_PROGRESS, TicketChannel.EMAIL,
+                TicketTopic.DELAY, TicketSentiment.NEGATIVE, HandledBy.HUMAN, false, null, UUID.randomUUID(),
+                "Hotel Miramar", null, assignedToId, "Soporte Uno", LocalDateTime.of(2026, 1, 1, 10, 0), 0);
     }
 }
