@@ -7,9 +7,10 @@ API REST para la gestión comercial de una distribuidora de productos de limpiez
 - Gestión de sucursales, almacenes, categorías, productos, inventario, clientes y órdenes.
 - Gestión de tickets con asignación, estados, mensajes y calificación.
 - Usuarios y roles con autenticación JWT y contraseñas BCrypt.
-- Análisis de facturas PDF/JPG/PNG con OCR, deduplicación SHA-256 y scoring de sospecha.
+- Análisis de facturas PDF/JPG/PNG con OCR, deduplicación SHA-256, validaciones y scoring de sospecha.
 - Almacenamiento local o Azure Blob Storage.
-- Chat interno de inventario y asistente público con Azure AI Agents / Microsoft Foundry.
+- Chat interno de inventario y asistente público con Azure AI Agents / Microsoft Foundry, incluido procesamiento de voz.
+- Generación de informes de ventas en formato Word con descarga temporal.
 - Respuestas uniformes y errores RFC 7807.
 - Pruebas con H2 en modo MySQL.
 
@@ -19,7 +20,7 @@ API REST para la gestión comercial de una distribuidora de productos de limpiez
 |---|---|
 | Java | 25 |
 | Spring Boot | 4.1.1 |
-| MySQL | 8.4 |
+| SQL Server / Azure SQL | Compatible |
 | Maven Wrapper | 3.10.0 |
 | JJWT | 0.12.6 |
 | Azure Blob Storage | 12.36.0 |
@@ -30,17 +31,24 @@ API REST para la gestión comercial de una distribuidora de productos de limpiez
 ## Requisitos
 
 - Java 25
-- Docker y Docker Compose
+- SQL Server o Azure SQL
 - Maven Wrapper incluido en el repositorio
 - Opcional: cuenta de Azure con Blob Storage, Document Intelligence y Microsoft Foundry
 
 ## Inicio rápido
 
-1. Levantar MySQL:
+1. Configurar la conexión a SQL Server o Azure SQL mediante
+   `SPRING_DATASOURCE_URL`.
 
 ```bash
-docker compose up -d
+# Ejemplo de formato:
+# jdbc:sqlserver://host:1433;databaseName=project_ai901;encrypt=true;trustServerCertificate=true
 ```
+
+> `docker-compose.yml` conserva una configuración de MySQL para desarrollo
+> histórico, pero la aplicación actual utiliza el controlador de SQL Server.
+> Antes de usar Docker, la URL, el controlador y el motor deben estar
+> alineados.
 
 2. Crear el archivo `.env` a partir de las variables documentadas abajo.
 
@@ -54,26 +62,6 @@ docker compose up -d
 .\mvnw.cmd spring-boot:run
 ```
 
-4. Ejecutar el seed inicial (después del primer arranque, porque Hibernate crea las tablas):
-
-```bash
-# Linux / macOS
-mysql -h 127.0.0.1 -P 3306 -u root -proot project_ai901 < src/main/resources/db/seed/seed-initial-data.sql
-
-# Windows PowerShell
-Get-Content -Raw .\src\main\resources\db\seed\seed-initial-data.sql |
-  docker exec -i project-ai901-mysql mysql -uroot -proot project_ai901
-```
-
-5. Probar el login:
-
-```bash
-curl -X POST http://localhost:8080/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@ai901.local","password":"Admin@123"}'
-```
-
-> Credenciales solo para desarrollo. Cámbialas antes de cualquier despliegue.
 
 ## Configuración
 
@@ -83,13 +71,10 @@ La aplicación carga opcionalmente `./.env` mediante `spring.config.import`.
 
 | Variable | Descripción | Default |
 |---|---|---|
-| `DB_HOST` | Host MySQL | `localhost` |
-| `DB_PORT` | Puerto MySQL | `3306` |
-| `DB_NAME` | Base de datos | `project_ai901` |
-| `DB_USER` | Usuario BD | `app` |
-| `DB_PASSWORD` | Password BD | `app` |
+| `SPRING_DATASOURCE_URL` | URL JDBC de SQL Server/Azure SQL | — |
+| `SPRING_DATASOURCE_USERNAME` | Usuario de la base de datos | — |
+| `SPRING_DATASOURCE_PASSWORD` | Contraseña de la base de datos | — |
 | `JWT_SECRET` | Secreto JWT, mínimo 32 caracteres | efímero |
-| `JWT_EXPIRATION` | Duración del token | `PT8H` |
 | `APP_STORAGE_TYPE` | `local` o `azure` | `local` |
 | `APP_STORAGE_LOCAL_PATH` | Ruta local de archivos | `./data/storage` |
 | `AZURE_STORAGE_CONNECTION_STRING` | Conexión Azure Blob | — |
@@ -97,8 +82,11 @@ La aplicación carga opcionalmente `./.env` mediante `spring.config.import`.
 | `AZURE_STORAGE_CONTAINER_VALID` | Contenedor de válidas | `facturas-validas` |
 | `AZURE_STORAGE_CONTAINER_QUARANTINE` | Contenedor de cuarentena | `facturas-cuarentena` |
 | `AZURE_OPENAI_ENDPOINT` | Endpoint de Microsoft Foundry | — |
-| `AZURE_OPENAI_AGENT_NAME` | Nombre de agente | — |
 | `AZURE_OPENAI_DEPLOYMENT` | Deployment del modelo | — |
+| `AZURE_SPEECH_ENDPOINT` | Endpoint de Azure Speech | — |
+| `AZURE_SPEECH_KEY` | Clave de Azure Speech | — |
+| `AZURE_SPEECH_LOCALE` | Idioma de transcripción | `es-MX` |
+| `AZURE_OPENAI_AGENT_NAME` | Nombre de agente heredado/configurable | — |
 | `APP_DI_PROVIDER` | `mock` o `azure` | `mock` |
 | `APP_DI_MOCK_MODE` | `sample` o `empty` | `sample` |
 | `AZURE_DOC_INTELLIGENCE_ENDPOINT` | Endpoint Document Intelligence | — |
@@ -133,13 +121,15 @@ Protección actual:
 |---|---|
 | `POST /auth/login` | Público |
 | `GET /auth/me` | Autenticado |
-| `POST /invoice-analyzer` | `ADMIN`, `BOSS`, `ADMIN_SUPPORT` |
+| `POST /invoice-analyzer/{supplierId}` | `ADMIN`, `BOSS`, `ADMIN_SUPPORT` |
 | `POST /invoice/{id}/review` | `ADMIN`, `BOSS`, `ADMIN_SUPPORT` |
 | `PUT /ticket/{id}/assign` | `ADMIN`, `BOSS`, `ADMIN_SUPPORT`, `BRANCH_MANAGER` |
+| `/supplier/**` | Autenticado |
 | `/user/**`, `/role/**` | `ADMIN`, `BOSS` |
 | `POST /chat/public` | Público |
 | `POST /chat` | Autenticado |
-| Resto de endpoints | Público actualmente |
+| `POST /public/invoice-analyzer/{supplierId}` | `ADMIN`, `BOSS`, `ADMIN_SUPPORT` o clave `X-Public-Upload-Key` válida |
+| Resto de endpoints | Autenticado |
 
 ## Endpoints
 
@@ -200,6 +190,16 @@ Protección actual:
 | PUT | `/product/{id}` |
 | DELETE | `/product/{id}` |
 
+### Proveedores
+
+| Método | Ruta |
+|---|---|
+| GET | `/supplier` |
+| GET | `/supplier/{id}` |
+| POST | `/supplier` |
+| PUT | `/supplier/{id}` |
+| DELETE | `/supplier/{id}` |
+
 ### Inventario
 
 | Método | Ruta |
@@ -257,18 +257,34 @@ Protección actual:
 | GET | `/invoice/{id}` |
 | POST | `/invoice/{id}/review` |
 | GET | `/invoice/{id}/file-url` |
-| POST | `/invoice-analyzer` |
+| POST | `/invoice-analyzer/{supplierId}` |
+| POST | `/public/invoice-analyzer/{supplierId}` |
+
+El análisis de facturas recibe `multipart/form-data` y el campo obligatorio
+`file`. El endpoint autenticado devuelve el análisis completo; el endpoint
+público devuelve una respuesta limitada para cargas autorizadas.
+
+### Informes
+
+| Método | Ruta |
+|---|---|
+| POST | `/report/sales` |
+| GET | `/report/download/{token}` |
+
+`POST /report/sales` genera un documento Word con las ventas por sucursal y
+periodo. El token de descarga es temporal y está asociado al usuario que
+generó el informe.
 
 ### Chat
 
 | Método | Ruta |
 |---|---|
-| POST | `/chat` |
-| POST | `/chat/public` |
+| POST | `/chat` (JSON o multipart/form-data) |
+| POST | `/chat/public` (JSON o multipart/form-data) |
 
 ## Flujo de facturas
 
-1. Validación de archivo y firma real.
+1. Validación de archivo, extensión, tamaño, páginas y dimensiones mínimas.
 2. Cálculo de SHA-256 y detección de duplicados.
 3. Conversión a PDF si es imagen.
 4. Subida al contenedor de entrada.
@@ -276,13 +292,17 @@ Protección actual:
 6. Scoring de sospecha.
 7. Clasificación `VALID`, `SUSPICIOUS` o `REJECTED`.
 8. Movimiento a contenedor final y registro de eventos.
-9. Revisión manual `APPROVE` / `REJECT`.
+9. Revisión manual mediante `POST /invoice/{id}/review`.
 
 ## Chat con IA
 
 - `/chat` usa el agente de inventario con contexto del usuario autenticado.
 - `/chat/public` usa el asistente público sin contexto de usuario.
-- Las herramientas disponibles se registran en `ToolRegistry`. Actualmente existe `buscar_producto`.
+- Las herramientas se implementan mediante `AgentTool` y se convierten en funciones mediante `ToolRegistry`.
+  Incluyen búsqueda de productos, inventario, sucursales, almacenes, pedidos,
+  tickets e informes de ventas.
+- Los mensajes pueden enviarse por texto o audio; el audio se transcribe con
+  Azure Speech antes de procesarse.
 - La publicación de agentes se controla con `foundry.agent.publish`.
 
 ## Pruebas
@@ -333,12 +353,3 @@ src/main/java/info/rio/project_ai901
 ├── repositories/
 └── services/
 ```
-
-## Notas
-
-- El login requiere que el usuario tenga un almacén asignado si se usa la implementación actual de `JwtService`.
-- Actualmente la mayoría de los CRUD quedan públicos por `anyRequest().permitAll()`.
-- No existe CRUD de proveedores; `supplierId` debe existir previamente en la base de datos.
-- Para usar Azure Document Intelligence, configurar `APP_DI_PROVIDER=azure`.
-- Para usar Azure Blob Storage, configurar `APP_STORAGE_TYPE=azure`.
-- No subir `.env` ni secretos al repositorio.

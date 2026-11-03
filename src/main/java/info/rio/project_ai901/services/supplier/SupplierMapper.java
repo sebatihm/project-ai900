@@ -34,6 +34,6 @@ public class SupplierMapper {
     }
 
     private String invoiceAnalyzerUrl(Supplier supplier) {
-        return frontendBaseUrl + "/invoice-analyzer/" + supplier.getId();
+        return frontendBaseUrl + "/chat/invoice-analyzer/" + supplier.getId();
     }
 }
